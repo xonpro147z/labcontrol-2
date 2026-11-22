@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Báo lỗ hổng bảo mật
+    url: https://github.com/xonpro147z/labcontrol-2/security/advisories/new
+    about: Không báo lỗ hổng bảo mật bằng Issue công khai.

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+target/
+__pycache__/
+*.egg-info/
+build/
+.env
+server/labcontrol_server/static/
+console/src-tauri/gen/
+console/src-tauri/icons/android/
+console/src-tauri/icons/ios/
+sim-state/
+data/
+.DS_Store

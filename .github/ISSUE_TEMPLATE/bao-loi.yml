@@ -1,0 +1,28 @@
+name: Báo lỗi
+description: Phần mềm chạy sai hoặc bị lỗi
+labels: [lỗi]
+body:
+  - type: textarea
+    id: mo-ta
+    attributes: { label: "Chuyện gì xảy ra?", description: Mô tả lỗi và điều bạn mong đợi }
+    validations: { required: true }
+  - type: textarea
+    id: tai-hien
+    attributes: { label: "Các bước tái hiện", placeholder: "1. Vào ...\n2. Bấm ...\n3. Thấy lỗi ..." }
+    validations: { required: true }
+  - type: dropdown
+    id: thanh-phan
+    attributes: { label: "Thành phần", options: [Agent (máy học sinh), Console (máy giáo viên), Trình chiếu, Điều khiển từ xa, Cài đặt] }
+    validations: { required: true }
+  - type: input
+    id: phien-ban
+    attributes: { label: "Phiên bản LabControl", placeholder: "1.0.0" }
+  - type: input
+    id: he-dieu-hanh
+    attributes: { label: "Hệ điều hành", placeholder: "Windows 11 23H2 / Linux Mint 22 Cinnamon X11" }
+  - type: textarea
+    id: nhat-ky
+    attributes:
+      label: Nhật ký (log)
+      description: "Agent Windows: C:\\ProgramData\\LabControl\\logs – Linux: journalctl -u labcontrol-agent. Hãy xóa thông tin nhạy cảm trước khi dán."
+      render: text

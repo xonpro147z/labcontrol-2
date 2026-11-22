@@ -1,0 +1,84 @@
+name: Build LabControl
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  agent:
+    strategy:
+      matrix:
+        include:
+          - { os: windows-latest, exe: labcontrol-agent.exe, script: cai-agent-windows.cmd, name: labcontrol-agent-windows-x64 }
+          - { os: ubuntu-22.04, exe: labcontrol-agent, script: install-agent-linux.sh, name: labcontrol-agent-linux-x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: "agent\ncrates/lc-core" }
+      - name: Thư viện hệ thống (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libxcb1-dev libgl1-mesa-dev
+      - name: Kiểm thử và build Agent
+        shell: bash
+        run: |
+          (cd crates/lc-core && cargo test --release)
+          cd agent && cargo test --release && cargo build --release
+      - name: Gom file (Agent + script cài nằm chung một thư mục)
+        shell: bash
+        run: |
+          mkdir dist
+          cp agent/target/release/${{ matrix.exe }} deploy/agent/${{ matrix.script }} LICENSE dist/
+          cp docs/HUONG-DAN.md dist/
+      - uses: actions/upload-artifact@v4
+        with: { name: "${{ matrix.name }}", path: dist/* }
+
+  console:
+    strategy:
+      matrix:
+        include:
+          - { os: windows-latest, name: labcontrol-console-windows }
+          - { os: ubuntu-22.04, name: labcontrol-console-linux }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: console/package-lock.json }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: console/src-tauri }
+      - name: Thư viện hệ thống (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev
+      - name: Build Console
+        working-directory: console
+        run: npm ci && npx tauri build
+      - name: Gom file
+        shell: bash
+        run: |
+          mkdir dist
+          find console/src-tauri/target/release/bundle \( -name '*-setup.exe' -o -name '*.deb' -o -name '*.AppImage' \) -exec cp {} dist/ \;
+          if [ "$RUNNER_OS" = "Windows" ]; then cp deploy/console/mo-tuong-lua-may-giao-vien.cmd dist/; fi
+      - uses: actions/upload-artifact@v4
+        with: { name: "${{ matrix.name }}", path: dist/* }
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [agent, console]
+    runs-on: ubuntu-24.04
+    permissions: { contents: write }
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts }
+      - name: Gom file phát hành
+        run: |
+          mkdir out
+          cp artifacts/labcontrol-console-windows/* artifacts/labcontrol-console-linux/* out/
+          (cd artifacts/labcontrol-agent-windows-x64 && zip -qr ../../out/labcontrol-agent-windows-x64.zip .)
+          (cd artifacts/labcontrol-agent-linux-x64 && chmod +x labcontrol-agent install-agent-linux.sh && tar czf ../../out/labcontrol-agent-linux-x64.tar.gz .)
+          (cd out && sha256sum * > SHA256SUMS.txt)
+      - uses: softprops/action-gh-release@v2
+        with: { files: out/*, generate_release_notes: true }
