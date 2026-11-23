@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Lock, MessageSquare, MousePointer2, Unlock, X } from "lucide-react";
-import { api, onFrame, type Student } from "../api";
+import { api, displayName, onFrame, type Student } from "../api";
 import { toast } from "../components/ui";
 
 /** Xem lớn một máy học sinh, có thể điều khiển chuột/bàn phím. Máy học sinh luôn hiện chỉ báo màu đỏ khi đang bị xem. */
@@ -39,7 +39,7 @@ export function Viewer({ s, onClose }: { s: Student; onClose: () => void }) {
   return (
     <div className="viewer">
       <div className="viewer-h">
-        <b style={{ fontSize: 15 }}>{s.info.name}</b>
+        <b style={{ fontSize: 15 }}>{displayName(s)}</b>
         <span className="small" style={{ color: "#94a3b8" }}>{s.info.user ? `👤 ${s.info.user} · ` : ""}{s.addr}</span>
         <div className="row right">
           <button className="btn sm" style={ctl ? { background: "#dc2626", color: "#fff", borderColor: "#dc2626" } : {}}
@@ -48,7 +48,7 @@ export function Viewer({ s, onClose }: { s: Student; onClose: () => void }) {
           <button className="btn sm" onClick={() => api.send([s.id], { t: "lock", message: "Hãy chú ý lên giáo viên" })}><Lock size={14} />Khóa</button>
           <button className="btn sm" onClick={() => api.send([s.id], { t: "unlock" })}><Unlock size={14} />Mở khóa</button>
           <button className="btn sm" onClick={() => {
-            const t = prompt("Tin nhắn gửi " + s.info.name);
+            const t = prompt("Tin nhắn gửi " + displayName(s));
             if (t) api.send([s.id], { t: "message", text: t });
           }}><MessageSquare size={14} />Tin nhắn</button>
           <button className="btn sm" onClick={onClose}><X size={14} />Đóng</button>

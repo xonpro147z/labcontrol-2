@@ -9,13 +9,15 @@ base64 = "0.23.1"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 getrandom = "0.2"
 hex = "0.4.3"
+hmac = "0.12"
 jpeg-encoder = "0.7.1"
 rcgen = { version = "0.14.10", default-features = false, features = ["crypto", "ring", "pem"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
-sha2 = "0.11.1"
-tokio = { version = "1.54.1", features = ["io-util"] }
+sha2 = "0.10"
+spake2 = "0.4.0"
+tokio = { version = "1.54.1", features = ["io-util", "time"] }
 zune-core = "0.5.3"
 zune-jpeg = "0.5.15"
 

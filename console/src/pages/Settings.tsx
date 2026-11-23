@@ -1,94 +1,119 @@
-import { useState } from "react";
-import { Copy, Plus, Trash2 } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Ban, Gauge, Info, KeyRound, Laptop, RefreshCw, Send } from "lucide-react";
 import { api, reload, setSettingsLocal, useStore, type Settings } from "../api";
-import { Topbar } from "../App";
-import { errText, toast } from "../components/ui";
+import { SOURCE_URL, VERSION } from "../components/About";
+import { Modal, Switch, errText, toast } from "../components/ui";
 
-export function SettingsPage() {
-  const { teacherCode, settings } = useStore();
-  const [f, setF] = useState<Settings>(settings!);
-  const [ip, setIp] = useState("");
-  const copy = (s: string) => navigator.clipboard.writeText(s).then(() => toast("Đã chép"), () => toast("Không chép được", "error"));
-  const win = `cai-agent-windows.cmd ${teacherCode}${f.room ? ` ${f.room}` : ""}`;
-  const lin = `sudo ./labcontrol-agent install --teacher ${teacherCode}${f.room ? ` --room "${f.room}"` : ""}`;
+const SECTIONS: { k: string; label: string; icon: ReactNode }[] = [
+  { k: "room", label: "Phòng & ghép máy", icon: <KeyRound size={16} /> },
+  { k: "install", label: "Cài máy học sinh", icon: <Laptop size={16} /> },
+  { k: "lists", label: "Danh sách chặn", icon: <Ban size={16} /> },
+  { k: "perf", label: "Hình ảnh & tốc độ", icon: <Gauge size={16} /> },
+  { k: "about", label: "Giới thiệu", icon: <Info size={16} /> },
+];
 
-  async function save(next = f) {
-    try { await api.setSettings(next); setSettingsLocal(next); await reload(); toast("Đã lưu cài đặt"); } catch (e) { toast(errText(e), "error"); }
-  }
+function randomPw() {
+  const a = new Uint32Array(1);
+  crypto.getRandomValues(a);
+  return String(100000 + (a[0] % 900000));
+}
 
-  return <>
-    <Topbar title="Cài đặt" crumb="Hệ thống" />
-    <div className="page">
-      <div className="card">
-        <div className="card-h"><h2>Mã giáo viên của máy này</h2></div>
-        <div className="card-b col" style={{ gap: 12 }}>
-          <div className="muted small">Máy học sinh chỉ cho phép những máy giáo viên có mã đã cài sẵn kết nối tới. Mã này là
-            khóa công khai, học sinh có biết cũng không dùng được để điều khiển máy khác.</div>
-          <div className="code-box">{teacherCode}</div>
-          <button className="btn sm" style={{ alignSelf: "flex-start" }} onClick={() => copy(teacherCode)}><Copy size={13} />Chép mã</button>
-          <div className="field"><label>Cài Agent trên máy học sinh Windows (chuột phải → Run as administrator, hoặc chạy trong cmd quản trị)</label>
-            <div className="code-box">{win}</div>
-            <button className="btn sm" style={{ alignSelf: "flex-start" }} onClick={() => copy(win)}><Copy size={13} />Chép lệnh</button></div>
-          <div className="field"><label>Cài Agent trên Linux Mint / Ubuntu</label>
-            <div className="code-box">{lin}</div>
-            <button className="btn sm" style={{ alignSelf: "flex-start" }} onClick={() => copy(lin)}><Copy size={13} />Chép lệnh</button></div>
-          <div className="small faint">Nhiều giáo viên dùng chung một phòng: trên máy học sinh chạy thêm
-            <span className="mono"> labcontrol-agent add-teacher LCT-...</span> với mã của từng giáo viên.</div>
-        </div>
+export function SettingsModal({ initial, onClose }: { initial: string; onClose: () => void }) {
+  const st = useStore();
+  const [sec, setSec] = useState(initial);
+  const [s, setS] = useState<Settings>(st.settings!);
+  const [webText, setWebText] = useState(st.settings!.web_list.join("\n"));
+  const [appText, setAppText] = useState(st.settings!.app_list.join("\n"));
+  const [err, setErr] = useState("");
+  const pwChanged = s.room_password.trim() !== st.settings!.room_password;
+  const up = (p: Partial<Settings>) => setS({ ...s, ...p });
+
+  const save = async () => {
+    const next: Settings = {
+      ...s, room_password: s.room_password.trim(), room: s.room.trim(),
+      web_list: webText.split(/[\s,]+/).map((x) => x.trim().toLowerCase()).filter(Boolean),
+      app_list: appText.split(/[\n,]+/).map((x) => x.trim()).filter(Boolean),
+    };
+    try {
+      await api.setSettings(next);
+      setSettingsLocal(next);
+      if (pwChanged && st.students.size) {
+        const n = await api.pushPassword();
+        toast(`Đã lưu. Mật khẩu phòng mới đã gửi tới ${n} máy đang trực tuyến`);
+      } else toast("Đã lưu cài đặt");
+      await reload();
+      onClose();
+    } catch (e) { setErr(errText(e)); }
+  };
+
+  const room = s.room.trim() ? ` --room "${s.room.trim()}"` : "";
+  const winCmd = `labcontrol-agent.exe install --password "${s.room_password.trim()}"${room}`;
+  const linCmd = `sudo ./labcontrol-agent install --password "${s.room_password.trim()}"${room}`;
+  const ipCmd = `${winCmd} --teacher-ip ${st.addresses[0] ?? "<IP máy giáo viên>"}`;
+  const copy = (t: string) => navigator.clipboard.writeText(t).then(() => toast("Đã chép"));
+
+  return (
+    <Modal title="Cài đặt" onClose={onClose} wide bare footer={<>
+      {err && <span className="err" style={{ marginRight: "auto" }}>{err}</span>}
+      <button className="btn" onClick={onClose}>Hủy</button><button className="btn primary" onClick={save}>Lưu</button></>}>
+      <div className="settings">
+        <nav>{SECTIONS.map((x) => <button key={x.k} className={sec === x.k ? "active" : ""} onClick={() => setSec(x.k)}>{x.icon}{x.label}</button>)}</nav>
+        <section>
+          {sec === "room" && <>
+            <div className="field"><label>Tên giáo viên</label><input className="input" value={s.teacher_name} onChange={(e) => up({ teacher_name: e.target.value })} /></div>
+            <div className="field"><label>Tên phòng máy</label><input className="input" placeholder="vd: P.Tin 1 (để trống nếu mạng chỉ có một phòng)" value={s.room} onChange={(e) => up({ room: e.target.value })} />
+              <span className="hint">Khi nhiều phòng dùng chung mạng, đặt tên phòng để máy học sinh chỉ vào đúng phòng của mình. Tên phòng phải giống lúc cài máy học sinh.</span></div>
+            <div className="field"><label>Mật khẩu phòng</label>
+              <div className="row"><input className="input mono" style={{ fontSize: 16, letterSpacing: ".08em" }} value={s.room_password} onChange={(e) => up({ room_password: e.target.value })} />
+                <button className="btn" onClick={() => up({ room_password: randomPw() })}><RefreshCw size={14} />Tạo mới</button></div>
+              <span className="hint">Máy học sinh dùng mật khẩu này để ghép với máy giáo viên <b>lần đầu</b>. Sau đó máy tự vào lớp, kể cả khi bạn đổi mật khẩu.
+                {pwChanged && " Khi lưu, mật khẩu mới sẽ được gửi tới các máy đang trực tuyến."}</span></div>
+            <Switch checked={s.accept_new} onChange={(v) => up({ accept_new: v })} label="Nhận máy mới bằng mật khẩu phòng"
+                    hint="Tắt khi đã đủ máy, để không ai ghép thêm máy lạ vào lớp." />
+            <div className="field"><label>Địa chỉ máy giáo viên</label>
+              <div className="code-box">{st.addresses.join(", ") || "—"} · cổng TCP 47900, UDP 47901</div>
+              <span className="hint">Chỉ máy giáo viên cần mở tường lửa cho hai cổng này (bộ cài đã tự mở). Máy học sinh không cần.</span></div>
+            <div className="field"><label>Mã giáo viên (khóa công khai)</label><div className="code-box">{st.teacherCode}</div></div>
+          </>}
+          {sec === "install" && <>
+            <div className="small muted">Cài một lần trên mỗi máy học sinh, bằng tài khoản quản trị. Bộ cài gồm Agent (chạy khi học sinh đăng nhập)
+              và dịch vụ Helper (giữ mật khẩu phòng, chặn web; học sinh không tắt được).</div>
+            <div className="field"><label>Cách 1 – chạy file cài</label>
+              <div className="small">Chép <span className="mono">labcontrol-agent.exe</span> và <span className="mono">cai-may-hoc-sinh.cmd</span> sang máy học sinh,
+                chuột phải <b>cai-may-hoc-sinh.cmd</b> → Run as administrator, nhập mật khẩu phòng <b className="mono">{s.room_password}</b>.</div></div>
+            <div className="field"><label>Cách 2 – Windows (Command Prompt quản trị)</label><div className="code-box">{winCmd}</div>
+              <button className="btn sm" style={{ alignSelf: "flex-start" }} onClick={() => copy(winCmd)}><Send size={13} />Chép lệnh</button></div>
+            <div className="field"><label>Linux</label><div className="code-box">{linCmd}</div></div>
+            <div className="field"><label>Khi mạng chặn tự tìm máy (khác VLAN, Wi-Fi cách ly)</label><div className="code-box">{ipCmd}</div>
+              <span className="hint">Thêm <span className="mono">--teacher-ip</span> để máy học sinh nối thẳng tới IP máy giáo viên.</span></div>
+          </>}
+          {sec === "lists" && <>
+            <div className="field"><label>Trang web hay chặn</label><textarea className="input mono" rows={7} value={webText} onChange={(e) => setWebText(e.target.value)} />
+              <span className="hint">Mỗi dòng một tên miền. Hiện thành nút chọn nhanh trong “Chặn web”.</span></div>
+            <div className="field"><label>Ứng dụng hay chặn</label><textarea className="input mono" rows={6} value={appText} onChange={(e) => setAppText(e.target.value)} />
+              <span className="hint">Tên tiến trình, vd <span className="mono">zalo.exe</span>. Xem tên trong Task Manager › Details.</span></div>
+          </>}
+          {sec === "perf" && <>
+            <div className="field"><label>Cập nhật ảnh màn hình mỗi {s.thumb_seconds} giây</label>
+              <input type="range" min={0.5} max={10} step={0.5} value={s.thumb_seconds} onChange={(e) => up({ thumb_seconds: +e.target.value })} /></div>
+            <div className="field"><label>Độ nét ảnh thu nhỏ: {s.thumb_width}px</label>
+              <input type="range" min={200} max={800} step={40} value={s.thumb_width} onChange={(e) => up({ thumb_width: +e.target.value })} /></div>
+            <div className="field"><label>Trình chiếu: {s.show_fps} khung hình/giây</label>
+              <input type="range" min={2} max={30} value={s.show_fps} onChange={(e) => up({ show_fps: +e.target.value })} /></div>
+            <div className="field"><label>Chất lượng trình chiếu: {s.show_quality}</label>
+              <input type="range" min={30} max={90} step={5} value={s.show_quality} onChange={(e) => up({ show_quality: +e.target.value })} />
+              <span className="hint">Mạng yếu hoặc nhiều máy: giảm khung hình/giây và chất lượng.</span></div>
+          </>}
+          {sec === "about" && <>
+            <div><b>LabControl {st.version || VERSION}</b> – phần mềm quản lý phòng máy tính.</div>
+            <div className="small muted">Đây là <b>phần mềm tự do</b>: bạn được dùng, nghiên cứu, sửa đổi và chia sẻ theo Giấy phép Công cộng GNU Affero
+              phiên bản 3 hoặc mới hơn (AGPL-3.0-or-later). Phần mềm được cung cấp <b>không kèm bất kỳ bảo đảm nào</b>.</div>
+            <div className="field"><label>Mã nguồn</label><div className="code-box">{SOURCE_URL}</div>
+              <button className="btn sm" style={{ alignSelf: "flex-start" }} onClick={() => copy(SOURCE_URL)}>Chép địa chỉ</button></div>
+            <div className="field"><label>Thư mục bài nộp và kết quả</label><div className="code-box">{st.outDir}</div></div>
+          </>}
+        </section>
       </div>
-
-      <div className="two">
-        <div className="card">
-          <div className="card-h"><h2>Lớp học</h2></div>
-          <div className="card-b col" style={{ gap: 14 }}>
-            <div className="field"><label>Tên giáo viên</label>
-              <input className="input" value={f.teacher_name} onChange={(e) => setF({ ...f, teacher_name: e.target.value })} /></div>
-            <div className="field"><label>Chỉ hiện máy của phòng</label>
-              <input className="input" value={f.room} placeholder="để trống = mọi máy tìm thấy" onChange={(e) => setF({ ...f, room: e.target.value })} />
-              <span className="hint">Dùng khi nhiều phòng chung một mạng. Đặt cùng tên phòng khi cài Agent.</span></div>
-            <div className="grid2">
-              <div className="field"><label>Cập nhật ảnh thu nhỏ (giây)</label>
-                <input className="input" type="number" min={0.5} step={0.5} value={f.thumb_seconds}
-                       onChange={(e) => setF({ ...f, thumb_seconds: +e.target.value })} /></div>
-              <div className="field"><label>Độ nét ảnh thu nhỏ (px)</label>
-                <input className="input" type="number" min={160} max={800} step={40} value={f.thumb_width}
-                       onChange={(e) => setF({ ...f, thumb_width: +e.target.value })} /></div>
-            </div>
-            <div className="grid2">
-              <div className="field"><label>Trình chiếu: khung hình/giây</label>
-                <input className="input" type="number" min={2} max={30} value={f.show_fps} onChange={(e) => setF({ ...f, show_fps: +e.target.value })} /></div>
-              <div className="field"><label>Trình chiếu: chất lượng (30–90)</label>
-                <input className="input" type="number" min={30} max={90} value={f.show_quality} onChange={(e) => setF({ ...f, show_quality: +e.target.value })} /></div>
-            </div>
-            <button className="btn primary" style={{ alignSelf: "flex-start" }} onClick={() => save()}>Lưu cài đặt</button>
-          </div>
-        </div>
-        <div className="card">
-          <div className="card-h"><h2>Thêm máy theo địa chỉ IP</h2></div>
-          <div className="card-b col" style={{ gap: 10 }}>
-            <div className="small muted">Bình thường máy học sinh tự hiện. Chỉ cần thêm tay khi mạng chặn tín hiệu tìm máy
-              (khác lớp mạng, Wi-Fi tách biệt...).</div>
-            <div className="row">
-              <input className="input" value={ip} placeholder="192.168.1.21" onChange={(e) => setIp(e.target.value)} />
-              <button className="btn" onClick={async () => {
-                if (!ip.trim()) return;
-                try {
-                  await api.addManual(ip.trim());
-                  const next = { ...f, manual: [...new Set([...f.manual, ip.trim()])] };
-                  setF(next); await save(next); setIp("");
-                } catch (e) { toast(errText(e), "error"); }
-              }}><Plus size={14} />Thêm</button>
-            </div>
-            {f.manual.map((m) => <div key={m} className="row"><span className="mono grow">{m}</span>
-              <button className="btn sm danger" onClick={async () => {
-                const next = { ...f, manual: f.manual.filter((x) => x !== m) };
-                setF(next); await save(next);
-                const id = m.includes(":") ? m : `${m}:47900`;
-                api.remove(id);
-              }}><Trash2 size={13} /></button></div>)}
-          </div>
-        </div>
-      </div>
-    </div>
-  </>;
+    </Modal>
+  );
 }

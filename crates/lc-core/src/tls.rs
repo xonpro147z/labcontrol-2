@@ -1,5 +1,5 @@
-//! TLS: Agent tự sinh chứng chỉ mỗi lần chạy (không lưu khóa riêng ra đĩa);
-//! Console chấp nhận chứng chỉ đó nhưng ghi lại dấu vân tay để gắn vào chữ ký xác thực.
+//! TLS: máy giáo viên là máy chủ (chứng chỉ tự sinh, lưu lại); Agent là máy khách, chấp nhận chứng chỉ
+//! nhưng ghi lại dấu vân tay để gắn vào bước xác thực (chữ ký hoặc ghép mật khẩu).
 
 use std::sync::{Arc, Mutex};
 
@@ -18,12 +18,22 @@ pub fn fingerprint(cert_der: &[u8]) -> String {
     hex::encode(Sha256::digest(cert_der))
 }
 
-/// Cấu hình TLS phía Agent + dấu vân tay chứng chỉ của nó.
-pub fn server_config(name: &str) -> Result<(Arc<ServerConfig>, String)> {
-    let ck = rcgen::generate_simple_self_signed(vec![name.to_string(), "labcontrol-agent".into()])?;
-    let der = ck.cert.der().to_vec();
+/// Cấu hình TLS phía máy giáo viên. Chứng chỉ được lưu trong `dir` để dấu vân tay không đổi.
+pub fn server_config(dir: &std::path::Path) -> Result<(Arc<ServerConfig>, String)> {
+    let (cp, kp) = (dir.join("tls-cert.der"), dir.join("tls-key.der"));
+    let (der, key_der) = match (std::fs::read(&cp), std::fs::read(&kp)) {
+        (Ok(c), Ok(k)) => (c, k),
+        _ => {
+            let ck = rcgen::generate_simple_self_signed(vec!["labcontrol-teacher".to_string()])?;
+            let (c, k) = (ck.cert.der().to_vec(), ck.signing_key.serialize_der());
+            std::fs::create_dir_all(dir)?;
+            std::fs::write(&cp, &c)?;
+            std::fs::write(&kp, &k)?;
+            (c, k)
+        }
+    };
     let fp = fingerprint(&der);
-    let key = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(ck.signing_key.serialize_der()));
+    let key = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(key_der));
     let cfg = ServerConfig::builder_with_provider(provider())
         .with_safe_default_protocol_versions()?
         .with_no_client_auth()
@@ -56,7 +66,7 @@ impl ServerCertVerifier for Capture {
     }
 }
 
-/// Cấu hình phía Console. Dấu vân tay thực sự nhìn thấy được ghi vào `seen` sau khi bắt tay.
+/// Cấu hình phía Agent (máy khách). Dấu vân tay thực sự nhìn thấy được ghi vào `seen` sau khi bắt tay.
 pub fn client_config() -> (Arc<ClientConfig>, Arc<Mutex<Option<String>>>) {
     let p = provider();
     let seen: Arc<Mutex<Option<String>>> = Default::default();

@@ -8,7 +8,7 @@ Cảm ơn bạn quan tâm. Mọi đóng góp đều được chào đón: báo l
 |---|---|
 | Lõi + Agent | `(cd crates/lc-core && cargo test) && (cd agent && cargo test && cargo build --release)` |
 | Console | `cd console && npm install && npx tauri dev` |
-| Thử kết nối | `cd agent && cargo run --example thu_ket_noi -- <ip:cổng> <teacher.key> <file>` |
+| Giả lập máy giáo viên | `cd agent && cargo run --example gia_lap_giao_vien -- <thư mục> <mật khẩu phòng> status quiz ...` |
 | Nhiều Agent một máy | đặt `LABCONTROL_PORT`, `LABCONTROL_AGENT_DIR`, `DISPLAY` khác nhau |
 
 Xem `README.md` để hiểu kiến trúc. Thư mục `docs/` có hướng dẫn triển khai và lộ trình.

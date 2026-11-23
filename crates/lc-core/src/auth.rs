@@ -43,7 +43,7 @@ pub fn parse_teacher_code(code: &str) -> Result<VerifyingKey> {
 }
 
 fn message(nonce: &str, tls_fp: &str) -> Vec<u8> {
-    format!("labcontrol-v2-auth|{nonce}|{tls_fp}").into_bytes()
+    format!("labcontrol-v3-auth|{nonce}|{tls_fp}").into_bytes()
 }
 
 pub fn sign(k: &SigningKey, nonce: &str, tls_fp: &str) -> String {
@@ -81,4 +81,17 @@ mod tests {
         let other = new_signing_key();
         assert!(!verify(&[code.clone()], &code, &sign(&other, "n1", "fp1"), "n1", "fp1"));
     }
+}
+
+/// Chữ ký cho chính sách chặn (để Helper quyền cao trên máy học sinh kiểm tra, học sinh không giả được).
+pub fn sign_policy(k: &SigningKey, policy_json: &str, ts: u64) -> String {
+    B64.encode(k.sign(format!("labcontrol-v3-policy|{ts}|{policy_json}").as_bytes()).to_bytes())
+}
+
+pub fn verify_policy(allowed: &[String], policy_json: &str, ts: u64, sig: &str) -> bool {
+    let Ok(sb) = B64.decode(sig) else { return false };
+    let Ok(arr): Result<[u8; 64], _> = sb.try_into() else { return false };
+    let sig = Signature::from_bytes(&arr);
+    let msg = format!("labcontrol-v3-policy|{ts}|{policy_json}");
+    allowed.iter().any(|code| parse_teacher_code(code).map(|vk| vk.verify(msg.as_bytes(), &sig).is_ok()).unwrap_or(false))
 }

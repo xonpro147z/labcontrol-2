@@ -1,15 +1,19 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Monitor, Settings as SettingsIcon, Users } from "lucide-react";
-import { notices, startStore, useStore } from "./api";
-import { SourceLink } from "./components/About";
+import { useEffect, useState } from "react";
+import { ClipboardList, History, LayoutGrid, Monitor, Moon, Settings as SettingsIcon, Sun } from "lucide-react";
+import { api, notices, setSettingsLocal, startStore, useStore } from "./api";
 import { Spinner, toast, Toasts } from "./components/ui";
 import { Classroom } from "./pages/Classroom";
-import { SettingsPage } from "./pages/Settings";
+import { LogPage } from "./pages/Log";
+import { SettingsModal } from "./pages/Settings";
+import { TasksPage } from "./pages/Tasks";
+
+export type Page = "class" | "tasks" | "log";
 
 export function App() {
   const [ready, setReady] = useState(false);
-  const [page, setPage] = useState<"class" | "settings">("class");
-  const { students, settings } = useStore();
+  const [page, setPage] = useState<Page>("class");
+  const [settingsOpen, setSettingsOpen] = useState<string | null>(null);
+  const { settings, pending, quiz } = useStore();
 
   useEffect(() => {
     startStore().then(() => setReady(true)).catch((e) => { toast(String(e), "error"); setReady(true); });
@@ -19,43 +23,33 @@ export function App() {
   }, []);
 
   if (!ready) return <div className="center"><Spinner /></div>;
-  const online = [...students.values()].filter((s) => s.state === "online").length;
-
-  const nav = (k: "class" | "settings", label: string, icon: ReactNode, extra?: ReactNode) => (
-    <button className={`nav ${page === k ? "active" : ""}`} onClick={() => setPage(k)}>{icon}{label}{extra}</button>
-  );
+  const dark = !!settings?.dark;
+  const toggleDark = async () => {
+    if (!settings) return;
+    const s = { ...settings, dark: !dark };
+    setSettingsLocal(s);
+    await api.setSettings(s).catch(() => {});
+  };
 
   return (
-    <div className="app">
-      <aside className="side">
-        <div className="brand">
-          <div className="logo"><Monitor size={18} color="#fff" /></div>
-          <div><b>LabControl</b><span>{settings?.teacher_name || "Máy giáo viên"}</span></div>
-        </div>
-        <div className="nav-group">Lớp học</div>
-        {nav("class", "Màn hình cả lớp", <Users size={17} />, <span className="tag">{online}/{students.size}</span>)}
-        <div className="nav-group">Hệ thống</div>
-        {nav("settings", "Cài đặt", <SettingsIcon size={17} />)}
-        <div className="side-foot">
-          <div className="small" style={{ color: "#94a3b8", padding: "0 4px 6px" }}>
-            {settings?.room ? <>Phòng: <b style={{ color: "#fff" }}>{settings.room}</b></> : "Mọi máy trong mạng"}
-          </div>
-          <SourceLink dark />
-        </div>
-      </aside>
+    <div className={`app ${dark ? "dark" : ""}`}>
+      <nav className="rail">
+        <div className="logo" title="LabControl"><Monitor size={22} /></div>
+        <button className={page === "class" ? "active" : ""} onClick={() => setPage("class")}>
+          <LayoutGrid size={21} />Lớp học{pending.length > 0 && <span className="badge-n">{pending.length}</span>}</button>
+        <button className={page === "tasks" ? "active" : ""} onClick={() => setPage("tasks")}>
+          <ClipboardList size={21} />Bài & kiểm tra{quiz?.running && <span className="badge-n">●</span>}</button>
+        <button className={page === "log" ? "active" : ""} onClick={() => setPage("log")}><History size={21} />Nhật ký</button>
+        <button onClick={() => setSettingsOpen("room")}><SettingsIcon size={21} />Cài đặt</button>
+        <button className="bottom" onClick={toggleDark}>{dark ? <Sun size={20} /> : <Moon size={20} />}{dark ? "Nền sáng" : "Nền tối"}</button>
+      </nav>
       <main className="main">
-        {page === "class" ? <Classroom goSettings={() => setPage("settings")} /> : <SettingsPage />}
+        {page === "class" && <Classroom openSettings={(s) => setSettingsOpen(s)} goTasks={() => setPage("tasks")} />}
+        {page === "tasks" && <TasksPage />}
+        {page === "log" && <LogPage />}
       </main>
+      {settingsOpen && <SettingsModal initial={settingsOpen} onClose={() => setSettingsOpen(null)} />}
       <Toasts />
-    </div>
-  );
-}
-
-export function Topbar({ title, crumb, children }: { title: ReactNode; crumb?: ReactNode; children?: ReactNode }) {
-  return (
-    <div className="topbar">
-      <div>{crumb && <div className="crumb">{crumb}</div>}<h1>{title}</h1></div>
-      <div className="row right">{children}</div>
     </div>
   );
 }

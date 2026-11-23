@@ -1,6 +1,6 @@
 # Thư viện bên thứ ba
 
-LabControl phát hành theo **AGPL-3.0-or-later**. Mọi thư viện đi kèm đều dùng giấy phép tương thích với AGPL-3.0. Danh sách dưới đây được kiểm tra ngày 22/11/2026 bằng `cargo metadata` và thông tin gói npm.
+LabControl phát hành theo **AGPL-3.0-or-later**. Mọi thư viện đi kèm đều dùng giấy phép tương thích với AGPL-3.0. Danh sách dưới đây được kiểm tra ngày 23/11/2026 bằng `cargo metadata` và thông tin gói npm.
 
 ## Agent và Console (Rust)
 
@@ -11,6 +11,7 @@ LabControl phát hành theo **AGPL-3.0-or-later**. Mọi thư viện đi kèm đ
 | MPL-2.0 | vài thư viện của Tauri/egui; tương thích GPL/AGPL theo điều 3.3 của MPL-2.0 |
 | "MIT OR Apache-2.0 OR LGPL-2.1", "Apache-2.0 OR GPL-2.0" | dùng theo lựa chọn MIT/Apache |
 | CDLA-Permissive-2.0 | `webpki-roots` |
+| IJG (kèm MIT/Apache) | `jpeg-encoder`: *phần mềm này dựa một phần trên công trình của Independent JPEG Group* |
 
 Thư viện chính:
 - `eframe`/`egui` (MIT/Apache): cửa sổ khóa máy, trình chiếu, tin nhắn
@@ -22,6 +23,9 @@ Thư viện chính:
 - `zune-jpeg` (MIT/Apache/Zlib)
 - `rcgen` (MIT/Apache)
 - `tauri` (MIT/Apache)
+- `spake2`, `hmac`, `sha2` (MIT/Apache), `curve25519-dalek` (BSD-3): ghép máy bằng mật khẩu phòng
+- `sysinfo` (MIT): chặn ứng dụng
+- `windows-service` (MIT/Apache): dịch vụ Helper trên Windows
 
 ## Phông chữ đi kèm egui
 

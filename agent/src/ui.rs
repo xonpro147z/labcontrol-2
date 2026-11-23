@@ -5,6 +5,8 @@
 //!  - message: tin nhắn của giáo viên
 //!  - view:    xem trình chiếu màn hình giáo viên (dữ liệu ô ảnh đọc từ stdin)
 //!  - badge:   chỉ báo "Giáo viên đang xem màn hình của bạn"
+//!  - exam:    dải "Đang trong giờ kiểm tra"
+//!  - quiz:    bài trắc nghiệm (đề đọc từ stdin, câu trả lời ghi ra stdout)
 
 use std::io::Read;
 use std::sync::{Arc, Mutex};
@@ -12,7 +14,9 @@ use std::sync::{Arc, Mutex};
 use eframe::egui;
 
 const BG: egui::Color32 = egui::Color32::from_rgb(15, 23, 42);
-const INDIGO: egui::Color32 = egui::Color32::from_rgb(79, 70, 229);
+// Màu nhận diện LabControl (xanh ngọc đậm)
+const INDIGO: egui::Color32 = egui::Color32::from_rgb(13, 148, 136);
+const INK: egui::Color32 = egui::Color32::from_rgb(15, 23, 42);
 
 fn setup_fonts(ctx: &egui::Context) {
     let candidates = [
@@ -76,6 +80,26 @@ pub fn run(mode: &str, text: &str, fullscreen: bool) -> anyhow::Result<()> {
                 Box::new(View { shared, tex: None, fullscreen })
             })
         }
+        "exam" => {
+            let (w, h) = (300.0, 34.0);
+            vp = vp.with_decorations(false).with_inner_size([w, h]).with_position([(sw - w) / 2.0, 0.0])
+                .with_mouse_passthrough(true).with_resizable(false);
+            Box::new(|_| Box::new(Exam))
+        }
+        "quiz" => {
+            let mut line = String::new();
+            std::io::stdin().read_line(&mut line)?;
+            let init: serde_json::Value = serde_json::from_str(&line)?;
+            let quiz: lc_core::proto::Quiz = serde_json::from_value(init["quiz"].clone())?;
+            let mut answers: Vec<i32> = serde_json::from_value(init["answers"].clone()).unwrap_or_default();
+            answers.resize(quiz.questions.len(), -1);
+            let deadline = init["timed"].as_bool().unwrap_or(false)
+                .then(|| std::time::Instant::now() + std::time::Duration::from_secs(init["seconds_left"].as_u64().unwrap_or(0)));
+            let (w, h) = ((sw * 0.6).clamp(560.0, 900.0), (sh * 0.8).clamp(420.0, 900.0));
+            vp = vp.with_inner_size([w, h]).with_position([(sw - w) / 2.0, (sh - h) / 2.0])
+                .with_title(format!("Trắc nghiệm: {}", quiz.title));
+            Box::new(move |_| Box::new(QuizWin { quiz, answers, deadline, confirm: false, sent_done: false }))
+        }
         _ => {
             let (w, h) = (360.0, 38.0);
             vp = vp.with_decorations(false).with_inner_size([w, h]).with_position([sw - w - 16.0, 16.0])
@@ -86,6 +110,7 @@ pub fn run(mode: &str, text: &str, fullscreen: bool) -> anyhow::Result<()> {
     let opts = eframe::NativeOptions { viewport: vp, ..Default::default() };
     eframe::run_native("LabControl", opts, Box::new(move |cc| {
         setup_fonts(&cc.egui_ctx);
+        cc.egui_ctx.set_visuals(egui::Visuals::light());
         Ok(app(&cc.egui_ctx))
     }))
     .map_err(|e| anyhow::anyhow!("Không mở được cửa sổ: {e}"))
@@ -264,5 +289,113 @@ impl eframe::App for Badge {
             .show(root, |ui| {
                 ui.label(egui::RichText::new("● Giáo viên đang xem màn hình của bạn").size(15.0).strong().color(egui::Color32::WHITE));
             });
+    }
+}
+
+// ------------------------------------------------------------------ dải "đang thi"
+struct Exam;
+
+impl eframe::App for Exam {
+    fn ui(&mut self, root: &mut egui::Ui, _f: &mut eframe::Frame) {
+        let ctx = &root.ctx().clone();
+        keep_open(ctx);
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(egui::Color32::from_rgb(217, 119, 6)).inner_margin(egui::Margin::symmetric(12, 7)))
+            .show(root, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label(egui::RichText::new("ĐANG TRONG GIỜ KIỂM TRA").size(15.0).strong().color(egui::Color32::WHITE));
+                });
+            });
+    }
+}
+
+// ------------------------------------------------------------------ trắc nghiệm
+struct QuizWin {
+    quiz: lc_core::proto::Quiz,
+    answers: Vec<i32>,
+    deadline: Option<std::time::Instant>,
+    confirm: bool,
+    sent_done: bool,
+}
+
+impl QuizWin {
+    fn emit(&self, done: bool) {
+        use std::io::Write;
+        let line = serde_json::json!({"answers": self.answers, "done": done});
+        let mut out = std::io::stdout().lock();
+        let _ = writeln!(out, "{line}");
+        let _ = out.flush();
+    }
+}
+
+impl eframe::App for QuizWin {
+    fn ui(&mut self, root: &mut egui::Ui, _f: &mut eframe::Frame) {
+        let ctx = &root.ctx().clone();
+        keep_open(ctx);
+        let left = self.deadline.map(|d| d.saturating_duration_since(std::time::Instant::now()).as_secs());
+        if left == Some(0) && !self.sent_done {
+            self.sent_done = true;
+            self.emit(true);
+        }
+        let answered = self.answers.iter().filter(|a| **a >= 0).count();
+        egui::Panel::top("head").frame(egui::Frame::new().fill(INDIGO).inner_margin(egui::Margin::symmetric(18, 12))).show(root, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new(&self.quiz.title).size(20.0).strong().color(egui::Color32::WHITE));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if let Some(l) = left {
+                        let c = if l < 60 { egui::Color32::from_rgb(254, 202, 202) } else { egui::Color32::WHITE };
+                        ui.label(egui::RichText::new(format!("⏱ {:02}:{:02}", l / 60, l % 60)).size(20.0).strong().color(c));
+                    }
+                    ui.label(egui::RichText::new(format!("Đã làm {answered}/{}", self.quiz.questions.len())).size(15.0)
+                        .color(egui::Color32::from_rgb(204, 251, 241)));
+                });
+            });
+        });
+        egui::Panel::bottom("foot").frame(egui::Frame::new().fill(egui::Color32::from_rgb(241, 245, 249)).inner_margin(egui::Margin::symmetric(18, 10))).show(root, |ui| {
+            ui.horizontal(|ui| {
+                if self.sent_done {
+                    ui.label(egui::RichText::new("Đã nộp bài. Chờ giáo viên...").size(16.0).strong().color(INDIGO));
+                } else if self.confirm {
+                    ui.label(egui::RichText::new(format!("Nộp bài? Còn {} câu chưa làm.", self.quiz.questions.len() - answered)).size(15.0).color(INK));
+                    if ui.add_sized([90.0, 34.0], egui::Button::new(egui::RichText::new("Nộp").size(16.0).color(egui::Color32::WHITE)).fill(INDIGO)).clicked() {
+                        self.sent_done = true;
+                        self.emit(true);
+                    }
+                    if ui.add_sized([100.0, 34.0], egui::Button::new(egui::RichText::new("Làm tiếp").size(16.0).color(INK))).clicked() {
+                        self.confirm = false;
+                    }
+                } else {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let b = egui::Button::new(egui::RichText::new("Nộp bài").size(16.0).color(egui::Color32::WHITE)).fill(INDIGO);
+                        if ui.add_sized([130.0, 36.0], b).clicked() {
+                            self.confirm = true;
+                        }
+                    });
+                }
+            });
+        });
+        egui::CentralPanel::default().frame(egui::Frame::new().fill(egui::Color32::WHITE).inner_margin(18)).show(root, |ui| {
+            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                let mut changed = false;
+                for (i, q) in self.quiz.questions.iter().enumerate() {
+                    ui.label(egui::RichText::new(format!("Câu {}. {}", i + 1, q.q)).size(17.0).strong().color(INK));
+                    ui.add_space(4.0);
+                    for (j, opt) in q.options.iter().enumerate() {
+                        let letter = (b'A' + j as u8) as char;
+                        let sel = self.answers[i] == j as i32;
+                        let r = ui.add_enabled(!self.sent_done, egui::RadioButton::new(sel, egui::RichText::new(format!("{letter}. {opt}")).size(16.0).color(INK)));
+                        if r.clicked() && !sel {
+                            self.answers[i] = j as i32;
+                            changed = true;
+                        }
+                    }
+                    ui.add_space(14.0);
+                }
+                if changed {
+                    self.emit(false);
+                }
+            });
+        });
+        ctx.request_repaint_after(std::time::Duration::from_millis(500));
     }
 }

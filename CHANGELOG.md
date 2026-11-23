@@ -2,6 +2,38 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.0.0] – 2026-11-23
+
+Đổi cách kết nối giống iClassroom: **máy học sinh tự tìm và tự nối về máy giáo viên**, ghép bằng **mật khẩu phòng**.
+Giao diện máy giáo viên làm lại hoàn toàn.
+
+### Kết nối và ghép máy
+- Máy học sinh gửi tín hiệu tìm máy giáo viên (UDP 47901), máy giáo viên trả lời; máy học sinh nối TLS về cổng 47900 của máy giáo viên.
+  Máy học sinh không mở cổng nào, không cần mở tường lửa.
+- Ghép lần đầu bằng mật khẩu phòng (SPAKE2 + xác nhận HMAC gắn với phiên TLS), sau đó dùng chữ ký Ed25519. Không còn phải chép "mã giáo viên".
+- Tùy chọn tên phòng (nhiều phòng chung mạng), địa chỉ IP máy giáo viên cố định (mạng chặn quảng bá), tắt nhận máy mới, đổi mật khẩu phòng từ xa.
+- Tab "Chưa ghép" hiện máy nhập sai mật khẩu. Giới hạn 10 lần sai / 5 phút trên mỗi máy học sinh.
+- Dịch vụ **Helper** (Windows Service / systemd) giữ mật khẩu phòng và thực hiện chặn web.
+
+### Giao diện máy giáo viên
+- Bố cục mới: thanh biểu tượng bên trái (Lớp học, Bài & kiểm tra, Nhật ký, Cài đặt, Nền tối), thanh công cụ lớn có menu thả xuống.
+- Thanh lọc: chọn tất cả, tab Tất cả / Trực tuyến / Ngoại tuyến / Chưa ghép, tìm kiếm, sắp xếp, cỡ ảnh S/M/L.
+- Ba kiểu xem: lưới màn hình, **sơ đồ phòng** kéo thả (xếp tự động theo tên), danh sách. Đặt tên hiển thị cho máy; máy ngoại tuyến vẫn hiện.
+- Cài đặt dạng hộp thoại nhiều mục; nền tối; màu nhận diện xanh ngọc.
+
+### Thêm
+- Chặn trang web (file hosts, qua Helper), chặn công cụ hệ thống, chặn ứng dụng theo tên, đóng ứng dụng đang mở.
+- Chế độ thi: dải "Đang trong giờ kiểm tra", đóng trình duyệt / ứng dụng nhắn tin / điều khiển từ xa / công cụ hệ thống.
+- Giới hạn tự hết hạn sau 3 phút nếu máy giáo viên ngừng gửi lại (Console bị tắt ngang).
+- Bài tập: giao bài (thư mục BaiLam + DE-BAI.txt), thu bài về máy giáo viên theo từng máy.
+- Trắc nghiệm: soạn nhanh bằng văn bản, đếm giờ, tự nộp khi hết giờ, chấm điểm trực tiếp, xuất CSV. Không gửi đáp án xuống máy học sinh.
+- Nhật ký buổi học.
+- Bộ cài máy giáo viên tự mở tường lửa; script `cai-may-hoc-sinh.cmd`, `go-may-hoc-sinh.cmd`.
+
+### Thay đổi không tương thích
+- Giao thức 3 không nói chuyện được với Agent / Console bản 2. Cài lại máy học sinh bằng `cai-may-hoc-sinh.cmd`.
+- Bỏ lệnh `install --teacher`, `add-teacher`; thay bằng `install --password`, `set-password`, `forget`.
+
 ## [2.0.0] – 2026-11-22
 
 Đổi sang mô hình **kiểu NetSupport School**: máy giáo viên kết nối thẳng tới máy học sinh trong mạng LAN.

@@ -15,10 +15,25 @@ struct State {
     view: Option<Child>,
     view_tx: Option<SyncSender<Vec<u8>>>,
     badge: Option<Child>,
+    want_exam: bool,
+    exam: Option<Child>,
+    quiz: Option<QuizRun>,
 }
 
-#[derive(Clone, Default)]
-pub struct UiMan(Arc<Mutex<State>>);
+/// Bài trắc nghiệm đang làm. Cửa sổ bị tắt ngang thì mở lại với các câu đã chọn.
+struct QuizRun {
+    quiz: lc_core::proto::Quiz,
+    answers: Vec<i32>,
+    deadline: Option<std::time::Instant>,
+    done: bool,
+    child: Option<Child>,
+}
+
+/// Sự kiện từ cửa sổ trắc nghiệm gửi lên máy giáo viên
+pub type QuizSink = Arc<dyn Fn(String, Vec<i32>, bool) + Send + Sync>;
+
+#[derive(Clone)]
+pub struct UiMan(Arc<Mutex<State>>, QuizSink);
 
 fn spawn_ui(mode: &str, text: &str, fullscreen: bool, piped: bool) -> Option<Child> {
     let exe = std::env::current_exe().ok()?;
@@ -28,7 +43,7 @@ fn spawn_ui(mode: &str, text: &str, fullscreen: bool, piped: bool) -> Option<Chi
         c.arg("--fullscreen");
     }
     c.stdin(if piped { Stdio::piped() } else { Stdio::null() });
-    c.stdout(Stdio::null()).stderr(Stdio::null());
+    c.stdout(if mode == "quiz" { Stdio::piped() } else { Stdio::null() }).stderr(Stdio::null());
     match c.spawn() {
         Ok(ch) => Some(ch),
         Err(e) => {
@@ -53,6 +68,10 @@ fn kill(c: &mut Option<Child>) {
 }
 
 impl UiMan {
+    pub fn new(sink: QuizSink) -> Self {
+        UiMan(Arc::new(Mutex::new(State::default())), sink)
+    }
+
     pub fn start_watchdog(&self) {
         let me = self.clone();
         std::thread::spawn(move || loop {
@@ -70,7 +89,7 @@ impl UiMan {
             _ => {}
         }
         // trình chiếu
-        match s.want_show.clone() {
+        match s.want_show.as_ref().copied() {
             Some(fs) if !alive(&mut s.view) => {
                 kill(&mut s.view);
                 s.view_tx = None;
@@ -104,6 +123,104 @@ impl UiMan {
         } else {
             kill(&mut s.badge);
         }
+        // dải "Đang thi"
+        if s.want_exam {
+            if !alive(&mut s.exam) {
+                s.exam = spawn_ui("exam", "", false, false);
+            }
+        } else {
+            kill(&mut s.exam);
+        }
+        // trắc nghiệm
+        let mut finished: Option<(String, Vec<i32>)> = None;
+        if let Some(q) = &mut s.quiz {
+            if let Some(d) = q.deadline {
+                if std::time::Instant::now() > d + std::time::Duration::from_secs(3) && !q.done {
+                    q.done = true;
+                    finished = Some((q.quiz.id.clone(), q.answers.clone()));
+                }
+            }
+            if q.done {
+                kill(&mut q.child);
+            } else if !alive(&mut q.child) {
+                q.child = self.spawn_quiz(q);
+            }
+        }
+        if let Some((id, a)) = finished {
+            drop(s);
+            (self.1)(id, a, true);
+        }
+    }
+
+    fn spawn_quiz(&self, q: &QuizRun) -> Option<Child> {
+        let mut ch = spawn_ui("quiz", "", false, true)?;
+        let left = q.deadline.map(|d| d.saturating_duration_since(std::time::Instant::now()).as_secs()).unwrap_or(0);
+        let init = serde_json::json!({"quiz": q.quiz, "answers": q.answers, "seconds_left": left, "timed": q.deadline.is_some()});
+        if let Some(mut stdin) = ch.stdin.take() {
+            let _ = writeln!(stdin, "{init}");
+            // giữ stdin mở: cửa sổ tự đóng khi Agent dừng
+            std::thread::spawn(move || {
+                let _keep = stdin;
+                std::thread::sleep(std::time::Duration::from_secs(86400));
+            });
+        }
+        if let Some(out) = ch.stdout.take() {
+            let me = self.clone();
+            let id = q.quiz.id.clone();
+            std::thread::spawn(move || {
+                use std::io::BufRead;
+                for line in std::io::BufReader::new(out).lines().map_while(Result::ok) {
+                    let Ok(v) = serde_json::from_str::<serde_json::Value>(&line) else { continue };
+                    let answers: Vec<i32> = serde_json::from_value(v["answers"].clone()).unwrap_or_default();
+                    let done = v["done"].as_bool().unwrap_or(false);
+                    let mut s = me.0.lock().unwrap();
+                    let Some(q) = s.quiz.as_mut().filter(|q| q.quiz.id == id && !q.done) else { break };
+                    q.answers = answers.clone();
+                    q.done = done;
+                    drop(s);
+                    (me.1)(id.clone(), answers, done);
+                    if done {
+                        break;
+                    }
+                }
+            });
+        }
+        Some(ch)
+    }
+
+    pub fn quiz_start(&self, quiz: lc_core::proto::Quiz) {
+        let mut s = self.0.lock().unwrap();
+        if let Some(old) = &mut s.quiz {
+            if old.quiz.id == quiz.id {
+                return; // giáo viên gửi lại (nối lại mạng) – giữ bài đang làm
+            }
+            kill(&mut old.child);
+        }
+        let n = quiz.questions.len();
+        let deadline = (quiz.minutes > 0).then(|| std::time::Instant::now() + std::time::Duration::from_secs(quiz.minutes as u64 * 60));
+        s.quiz = Some(QuizRun { quiz, answers: vec![-1; n], deadline, done: false, child: None });
+        drop(s);
+        self.reconcile();
+    }
+
+    /// Giáo viên thu bài trắc nghiệm: nộp phần đã làm
+    pub fn quiz_stop(&self, id: &str) {
+        let mut s = self.0.lock().unwrap();
+        let Some(mut q) = s.quiz.take().filter(|q| q.quiz.id == id) else { return };
+        kill(&mut q.child);
+        drop(s);
+        if !q.done {
+            (self.1)(q.quiz.id, q.answers, true);
+        }
+    }
+
+    pub fn set_exam(&self, on: bool) {
+        self.0.lock().unwrap().want_exam = on;
+        self.reconcile();
+    }
+
+    pub fn exam(&self) -> bool {
+        self.0.lock().unwrap().want_exam
     }
 
     pub fn lock(&self, msg: &str) {

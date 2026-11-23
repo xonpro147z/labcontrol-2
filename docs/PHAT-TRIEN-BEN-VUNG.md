@@ -6,13 +6,14 @@ LabControl là phần mềm tự do theo AGPL-3.0-or-later.
 
 | Phiên bản | Nội dung | Trạng thái |
 |---|---|---|
-| 2.0 | Mô hình kiểu NetSupport: xem cả lớp, xem lớn + điều khiển, trình chiếu, khóa, tin nhắn, mở web, gửi file, nguồn | **Xong**: đã thử trên Linux, chưa thử Windows thật |
-| 2.1 | Agent chạy như dịch vụ Windows, mở lại tiến trình trong phiên học sinh khi bị tắt (học sinh khó tắt Agent hơn) | Cần làm |
-| 2.1 | Trình chiếu qua multicast (một luồng cho cả phòng, máy giáo viên yếu vẫn chiếu được cho 40 máy) | Cần làm |
-| 2.2 | Học sinh "giơ tay" xin trợ giúp, trò chuyện hai chiều | Cần làm |
-| 2.2 | Thu bài: học sinh gửi file về máy giáo viên | Cần làm |
-| 2.3 | Chặn web/ứng dụng trong giờ học, danh sách ứng dụng đang chạy | Cần làm |
-| 2.3 | Trình chiếu kèm âm thanh, trình chiếu màn hình một học sinh cho cả lớp | Cần làm |
+| 2.0 | Mô hình kiểu NetSupport: xem cả lớp, xem lớn + điều khiển, trình chiếu, khóa, tin nhắn, mở web, gửi file, nguồn | Xong |
+| 3.0 | Máy học sinh tự nối về, ghép bằng mật khẩu phòng; Helper dịch vụ hệ thống; sơ đồ phòng; chặn web/ứng dụng; chế độ thi; bài tập; trắc nghiệm; giao diện mới | **Xong**: đã thử trên Linux, chưa thử Windows thật |
+| 3.1 | Helper mở lại Agent trong phiên học sinh khi bị tắt (học sinh khó tắt Agent hơn) | Cần làm |
+| 3.1 | Trình chiếu qua multicast (một luồng cho cả phòng, máy giáo viên yếu vẫn chiếu được cho 40 máy) | Cần làm |
+| 3.2 | Học sinh "giơ tay" xin trợ giúp, trò chuyện hai chiều | Cần làm |
+| 3.2 | Trắc nghiệm: nhập đề từ Word/Excel, câu hỏi có hình, đảo câu/đáp án | Cần làm |
+| 3.3 | Trình chiếu kèm âm thanh, trình chiếu màn hình một học sinh cho cả lớp | Cần làm |
+| — | Chặn web theo danh sách cho phép (whitelist), lọc DNS | Cần làm |
 | — | Wayland (Linux), nhiều màn hình, giao diện tiếng Anh | Cần làm |
 | — | Tự cập nhật Console và Agent, bộ cài có ký số | Cần làm |
 

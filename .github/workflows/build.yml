@@ -11,8 +11,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - { os: windows-latest, exe: labcontrol-agent.exe, script: cai-agent-windows.cmd, name: labcontrol-agent-windows-x64 }
-          - { os: ubuntu-22.04, exe: labcontrol-agent, script: install-agent-linux.sh, name: labcontrol-agent-linux-x64 }
+          - { os: windows-latest, exe: labcontrol-agent.exe, script: '*.cmd', name: labcontrol-agent-windows-x64 }
+          - { os: ubuntu-22.04, exe: labcontrol-agent, script: '*.sh', name: labcontrol-agent-linux-x64 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
