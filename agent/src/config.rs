@@ -80,7 +80,7 @@ pub fn save(c: &Config) -> Result<()> {
 }
 
 /// Chỉ quản trị viên và SYSTEM/root đọc được (file có mật khẩu phòng).
-fn restrict(p: &std::path::Path) {
+pub fn restrict(p: &std::path::Path) {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -106,4 +106,46 @@ pub fn hostname() -> String {
     std::env::var("COMPUTERNAME")
         .or_else(|_| std::fs::read_to_string("/etc/hostname").map(|s| s.trim().to_string()))
         .unwrap_or_else(|_| "may-hoc-sinh".into())
+}
+
+/// Nơi cài Agent (cũng là chương trình của Helper).
+pub fn install_path() -> PathBuf {
+    #[cfg(windows)]
+    {
+        PathBuf::from(std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".into()))
+            .join("LabControl").join("labcontrol-agent.exe")
+    }
+    #[cfg(not(windows))]
+    {
+        PathBuf::from("/usr/local/bin/labcontrol-agent")
+    }
+}
+
+/// Chép chương trình `src` vào nơi cài. Bản đang chạy được đổi tên thành .old trước
+/// (Windows không cho ghi đè file đang chạy nhưng cho đổi tên).
+pub fn install_binary(src: &std::path::Path) -> Result<PathBuf> {
+    let dest = install_path();
+    if let Some(d) = dest.parent() {
+        std::fs::create_dir_all(d).context("Không tạo được thư mục cài đặt (cần quyền quản trị)")?;
+    }
+    if dest.exists() {
+        let mut old = dest.with_extension("old");
+        if old.exists() && std::fs::remove_file(&old).is_err() {
+            // bản .old cũ vẫn đang chạy (vừa cập nhật lần trước): dùng tên khác
+            let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+            old = dest.with_extension(format!("old{t}"));
+        }
+        std::fs::rename(&dest, &old).context("Không đổi tên được bản cũ")?;
+    }
+    if let Err(e) = std::fs::copy(src, &dest) {
+        // trả lại bản cũ để máy vẫn chạy được
+        let _ = std::fs::rename(dest.with_extension("old"), &dest);
+        return Err(anyhow::anyhow!("Không chép được Agent vào thư mục cài đặt (cần quyền quản trị): {e}"));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755));
+    }
+    Ok(dest)
 }

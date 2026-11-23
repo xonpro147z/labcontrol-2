@@ -27,6 +27,9 @@ pub struct AgentInfo {
     pub room: String,
     pub screen_w: u32,
     pub screen_h: u32,
+    /// "windows" | "linux" (từ bản 3.0.2)
+    #[serde(default)]
+    pub platform: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -120,6 +123,8 @@ pub enum Ctrl {
     /// Thu bài: Agent gửi từng file (dữ liệu đi bằng K_FILE với cùng id)
     CollectFile { task: String, id: u64, name: String, size: u64 },
     CollectEnd { task: String, files: u32, error: String },
+    /// Kết quả cập nhật phần mềm do máy giáo viên đẩy xuống
+    UpdateDone { ok: bool, version: String, error: String },
     /// Bài trắc nghiệm: `done` = đã nộp (hết giờ hoặc học sinh bấm Nộp bài)
     QuizAnswer { id: String, answers: Vec<i32>, user: String, #[serde(default)] done: bool },
     Pong,
@@ -143,6 +148,9 @@ pub enum Ctrl {
     SetPolicy { policy: Policy, ts: u64, sig: String },
     /// Đóng một ứng dụng đang mở (theo tên tiến trình)
     CloseApp { name: String },
+    /// Cập nhật Agent: dữ liệu đi bằng K_FILE cùng id. `sig` ký trên auth::update_message(platform, version, sha256).
+    UpdateBegin { id: u64, version: String, platform: String, size: u64, sha256: String, ts: u64, sig: String },
+    UpdateEnd { id: u64 },
     /// Mở ứng dụng trên máy học sinh (tên chương trình, đường dẫn hoặc dòng lệnh)
     RunApp { cmd: String },
     /// Giao bài: tạo thư mục bài làm, hiện đề bài

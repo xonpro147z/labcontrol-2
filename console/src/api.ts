@@ -37,9 +37,12 @@ export type InputEv =
   | { t: "mouse_move"; x: number; y: number } | { t: "mouse_button"; button: string; down: boolean }
   | { t: "wheel"; dx: number; dy: number } | { t: "key"; key: string; code: string; down: boolean } | { t: "text"; text: string };
 
+export interface UpdateInfo { version: string; url: string; notes: string; newer: boolean }
+
 interface AppState {
   teacher_code: string; settings: Settings; students: Student[]; pending: Pending[]; showing: boolean; policy: Policy;
   tasks: Task[]; quiz: QuizRun | null; listen_error: string; out_dir: string; addresses: string[]; version: string;
+  update: UpdateInfo | null; bundled: string[];
 }
 
 export const api = {
@@ -64,6 +67,9 @@ export const api = {
   quizStart: (ids: string[], quiz: Quiz) => invoke<number>("quiz_start", { ids, quiz }),
   quizStop: () => invoke("quiz_stop"),
   openQuizCsv: () => invoke("open_quiz_csv"),
+  checkUpdate: () => invoke<UpdateInfo>("check_update"),
+  pushUpdate: (ids: string[], file: string | null) => invoke<number>("push_update", { ids, file }),
+  openRelease: (url: string) => invoke("open_release", { url }),
 };
 
 // ------------------------------------------------------------------ kho dữ liệu dùng chung
@@ -82,6 +88,8 @@ interface Snap {
   outDir: string;
   addresses: string[];
   version: string;
+  update: UpdateInfo | null;
+  bundled: string[];
   log: LogItem[];
   /** task -> student -> {files, done, error} */
   collects: Record<string, Record<string, { files: number; done: boolean; error?: string }>>;
@@ -90,7 +98,7 @@ interface Snap {
 
 let snap: Snap = {
   students: new Map(), thumbs: new Map(), pending: [], showing: false, policy: NO_POLICY, tasks: [], quiz: null,
-  teacherCode: "", settings: null, listenError: "", outDir: "", addresses: [], version: "", log: [], collects: {}, v: 0,
+  teacherCode: "", settings: null, listenError: "", outDir: "", addresses: [], version: "", update: null, bundled: [], log: [], collects: {}, v: 0,
 };
 const subs = new Set<() => void>();
 function set(p: Partial<Snap>) {
@@ -115,6 +123,7 @@ const fileListeners = new Set<FileListener>();
 export function onFileDone(f: FileListener) { fileListeners.add(f); return () => { fileListeners.delete(f); }; }
 
 export const notices = new Set<(t: string) => void>();
+export const infos = new Set<(t: string) => void>();
 
 let started = false;
 export async function startStore() {
@@ -144,6 +153,8 @@ export async function startStore() {
   await listen<{ student: string; ok: boolean; path: string; error: string }>("file_done", (e) => fileListeners.forEach((f) => f(e.payload)));
   await listen<string>("notice", (e) => { log(e.payload, "warn"); notices.forEach((f) => f(e.payload)); });
   await listen<boolean>("show", (e) => set({ showing: e.payload }));
+  await listen<string>("info", (e) => { log(e.payload); infos.forEach((f) => f(e.payload)); });
+  await listen<UpdateInfo>("update", (e) => set({ update: e.payload }));
   await listen<Pending[]>("pending", (e) => set({ pending: e.payload }));
   await listen<Policy>("policy", (e) => set({ policy: e.payload }));
   await listen<Task[]>("tasks", (e) => set({ tasks: e.payload }));
@@ -162,7 +173,7 @@ export async function reload() {
   set({
     students: new Map(s.students.map((x) => [x.id, x])), pending: s.pending, showing: s.showing, policy: s.policy,
     tasks: s.tasks, quiz: s.quiz, teacherCode: s.teacher_code, settings: s.settings, listenError: s.listen_error,
-    outDir: s.out_dir, addresses: s.addresses, version: s.version,
+    outDir: s.out_dir, addresses: s.addresses, version: s.version, update: s.update, bundled: s.bundled,
   });
 }
 

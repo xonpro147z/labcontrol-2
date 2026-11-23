@@ -18,6 +18,8 @@ struct State {
     want_exam: bool,
     exam: Option<Child>,
     quiz: Option<QuizRun>,
+    /// Agent sắp khởi động lại (cập nhật): không mở lại cửa sổ nào nữa
+    stopping: bool,
 }
 
 /// Bài trắc nghiệm đang làm. Cửa sổ bị tắt ngang thì mở lại với các câu đã chọn.
@@ -80,8 +82,25 @@ impl UiMan {
         });
     }
 
+    /// Đóng mọi cửa sổ con trước khi Agent thoát (để bản mới mở lại).
+    pub fn shutdown(&self) {
+        let mut s = self.0.lock().unwrap();
+        s.stopping = true;
+        s.view_tx = None;
+        kill(&mut s.lock);
+        kill(&mut s.view);
+        kill(&mut s.badge);
+        kill(&mut s.exam);
+        if let Some(q) = &mut s.quiz {
+            kill(&mut q.child);
+        }
+    }
+
     fn reconcile(&self) {
         let mut s = self.0.lock().unwrap();
+        if s.stopping {
+            return;
+        }
         // khóa máy
         match s.want_lock.clone() {
             Some(msg) if !alive(&mut s.lock) => s.lock = spawn_ui("lock", &msg, true, false),

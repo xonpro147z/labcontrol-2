@@ -95,3 +95,43 @@ pub fn verify_policy(allowed: &[String], policy_json: &str, ts: u64, sig: &str) 
     let msg = format!("labcontrol-v3-policy|{ts}|{policy_json}");
     allowed.iter().any(|code| parse_teacher_code(code).map(|vk| vk.verify(msg.as_bytes(), &sig).is_ok()).unwrap_or(false))
 }
+
+/// Nội dung được ký cho một gói cập nhật Agent.
+pub fn update_message(platform: &str, version: &str, sha256: &str) -> String {
+    format!("update:{platform}:{version}:{sha256}")
+}
+
+/// Mã băm SHA-256 (dạng hex) của dữ liệu.
+pub fn sha256_hex(data: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    hex::encode(Sha256::digest(data))
+}
+
+/// So sánh phiên bản dạng "3.0.10" (bỏ chữ v ở đầu). Trả về true nếu `a` mới hơn `b`.
+pub fn version_newer(a: &str, b: &str) -> bool {
+    let p = |s: &str| -> Vec<u64> {
+        s.trim().trim_start_matches(['v', 'V']).split(['.', '-', '+']).map_while(|x| x.parse().ok()).collect()
+    };
+    p(a) > p(b)
+}
+
+#[cfg(test)]
+mod update_tests {
+    use super::*;
+    #[test]
+    fn versions() {
+        assert!(version_newer("v3.0.10", "3.0.9"));
+        assert!(version_newer("3.1.0", "3.0.1"));
+        assert!(!version_newer("3.0.1", "3.0.1"));
+        assert!(!version_newer("2.9.9", "3.0.0"));
+    }
+    #[test]
+    fn update_signature() {
+        let k = new_signing_key();
+        let code = teacher_code(&k);
+        let m = update_message("linux", "3.0.2", &sha256_hex(b"abc"));
+        let sig = sign_policy(&k, &m, 5);
+        assert!(verify_policy(&[code.clone()], &m, 5, &sig));
+        assert!(!verify_policy(&[code], &update_message("linux", "3.0.2", &sha256_hex(b"abd")), 5, &sig));
+    }
+}

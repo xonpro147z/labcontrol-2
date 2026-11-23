@@ -38,6 +38,9 @@ struct State {
     /// Lần cuối giáo viên gửi lại chính sách chặn web. Máy giáo viên gửi lại mỗi phút;
     /// quá 3 phút không nhận được (giáo viên tắt Console, mất mạng) thì tự bỏ chặn.
     policy_at: Option<Instant>,
+    last_update_ts: u64,
+    /// Đang chạy như dịch vụ riêng (không phải chạy ké trong Agent khi máy chưa cài Helper)
+    service: bool,
 }
 
 const POLICY_TTL: Duration = Duration::from_secs(180);
@@ -68,7 +71,7 @@ pub async fn serve() -> Result<()> {
     tracing::info!("Helper sẵn sàng ở 127.0.0.1:{HELPER_PORT}");
     // khởi động lại thì bỏ chặn cũ; giáo viên đang dạy sẽ gửi lại trong vòng 1 phút
     let _ = apply_hosts(&[]);
-    let st = Arc::new(Mutex::new(State::default()));
+    let st = Arc::new(Mutex::new(State { service: true, ..Default::default() }));
     expiry_loop(st.clone());
     loop {
         let (s, _) = l.accept().await?;
@@ -177,6 +180,51 @@ fn handle(st: &Arc<Mutex<State>>, v: Value) -> Result<Value> {
             config::save(&c)?;
             Ok(json!({"ok": true}))
         }
+        "update" => {
+            // Cập nhật Agent do máy giáo viên đẩy xuống. Chỉ nhận khi có chữ ký của giáo viên đã ghép
+            // trên đúng mã băm của file, nên học sinh không cài được chương trình lạ qua đây.
+            let platform = v["platform"].as_str().unwrap_or("");
+            let version = v["version"].as_str().unwrap_or("");
+            let sha = v["sha256"].as_str().unwrap_or("");
+            let ts = v["ts"].as_u64().unwrap_or(0);
+            let sig = v["sig"].as_str().unwrap_or("");
+            if platform != std::env::consts::OS {
+                bail!("gói cập nhật dành cho {platform}, máy này là {}", std::env::consts::OS);
+            }
+            let c = config::load()?;
+            if !auth::verify_policy(&c.teachers, &auth::update_message(platform, version, sha), ts, sig) {
+                bail!("chữ ký gói cập nhật không hợp lệ");
+            }
+            {
+                let mut s = st.lock().unwrap();
+                if ts <= s.last_update_ts {
+                    bail!("lệnh cũ");
+                }
+                s.last_update_ts = ts;
+            }
+            use base64::Engine;
+            let data = base64::engine::general_purpose::STANDARD.decode(v["data"].as_str().unwrap_or(""))
+                .map_err(|_| anyhow!("dữ liệu cập nhật hỏng"))?;
+            if auth::sha256_hex(&data) != sha {
+                bail!("file cập nhật bị hỏng khi truyền");
+            }
+            std::fs::create_dir_all(config::dir())?;
+            let staged = config::dir().join("update.bin");
+            std::fs::write(&staged, &data)?;
+            config::restrict(&staged);
+            let r = config::install_binary(&staged);
+            let _ = std::fs::remove_file(&staged);
+            let dest = r?;
+            tracing::info!("Đã cài bản cập nhật {version} vào {}", dest.display());
+            if st.lock().unwrap().service {
+                // thoát để Windows Service / systemd chạy lại Helper bằng bản mới
+                std::thread::spawn(|| {
+                    std::thread::sleep(Duration::from_millis(1500));
+                    std::process::exit(3);
+                });
+            }
+            Ok(json!({"ok": true, "path": dest.display().to_string()}))
+        }
         _ => bail!("lệnh không hỗ trợ"),
     }
 }
@@ -248,7 +296,11 @@ pub fn apply_hosts(domains: &[String]) -> Result<()> {
 /// Gọi Helper; nếu máy không cài Helper mà Agent đọc được cấu hình (chạy thử, hoặc máy chỉ có một
 /// tài khoản quản trị) thì Agent tự làm phần việc của Helper ngay trong tiến trình.
 pub async fn machine(req: Value) -> Result<Value> {
-    match call(req.clone()).await {
+    machine_wait(req, Duration::from_secs(5)).await
+}
+
+pub async fn machine_wait(req: Value, wait: Duration) -> Result<Value> {
+    match call_wait(req.clone(), wait).await {
         Ok(v) => Ok(v),
         Err(e) if e.downcast_ref::<std::io::Error>().is_some() || e.to_string().contains("không phản hồi") => {
             static LOCAL: std::sync::OnceLock<Arc<Mutex<State>>> = std::sync::OnceLock::new();
@@ -270,12 +322,16 @@ pub async fn has_helper() -> bool {
 }
 
 pub async fn call(req: Value) -> Result<Value> {
+    call_wait(req, Duration::from_secs(5)).await
+}
+
+async fn call_wait(req: Value, wait: Duration) -> Result<Value> {
     let s = tokio::time::timeout(Duration::from_secs(2), tokio::net::TcpStream::connect(("127.0.0.1", HELPER_PORT))).await
         .map_err(|_| anyhow!("Helper không phản hồi"))??;
     let (r, mut w) = s.into_split();
     w.write_all(format!("{req}\n").as_bytes()).await?;
     let mut lines = BufReader::new(r).lines();
-    let line = tokio::time::timeout(Duration::from_secs(5), lines.next_line()).await
+    let line = tokio::time::timeout(wait, lines.next_line()).await
         .map_err(|_| anyhow!("Helper không phản hồi"))??.ok_or_else(|| anyhow!("Helper đóng kết nối"))?;
     let v: Value = serde_json::from_str(&line)?;
     if v["ok"].as_bool() != Some(true) {

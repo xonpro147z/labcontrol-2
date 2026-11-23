@@ -41,6 +41,7 @@ impl Shared {
             room: cfg.room.clone(),
             screen_w: w,
             screen_h: h,
+            platform: std::env::consts::OS.into(),
         }
     }
 }
@@ -50,6 +51,16 @@ struct Incoming {
     tmp: PathBuf,
     dest: PathBuf,
     left: u64,
+    /// Gói cập nhật Agent (không phải file gửi cho học sinh)
+    update: Option<UpdateMeta>,
+}
+
+struct UpdateMeta {
+    version: String,
+    platform: String,
+    sha256: String,
+    ts: u64,
+    sig: String,
 }
 
 fn receive_dir() -> PathBuf {
@@ -121,7 +132,11 @@ where
                     }
                 }
                 K_CTRL => {
-                    let c = proto::parse_ctrl(&d)?;
+                    // lệnh lạ (máy giáo viên bản mới hơn) thì bỏ qua, không ngắt kết nối
+                    let Ok(c) = proto::parse_ctrl(&d) else {
+                        tracing::debug!("bỏ qua lệnh không hiểu");
+                        continue;
+                    };
                     handle(c, &sh, &tx, &teacher, &mut stream_stop, &mut started_show, &mut files).await?;
                 }
                 _ => {}
@@ -229,7 +244,57 @@ async fn handle(
             let dest = tasks::unique(&dir, &tasks::safe_name(&name));
             let tmp = dest.with_extension("dangnhan");
             let file = tokio::fs::File::create(&tmp).await?;
-            files.insert(id, Incoming { file, tmp, dest, left: size });
+            files.insert(id, Incoming { file, tmp, dest, left: size, update: None });
+        }
+        Ctrl::UpdateBegin { id, version, platform, size, sha256, ts, sig } => {
+            let msg = auth::update_message(&platform, &version, &sha256);
+            let err = if platform != std::env::consts::OS {
+                Some(format!("gói dành cho {platform}"))
+            } else if !auth::verify_policy(&[teacher.to_string()], &msg, ts, &sig) {
+                Some("chữ ký không hợp lệ".to_string())
+            } else if size > 200 << 20 {
+                Some("gói quá lớn".to_string())
+            } else {
+                None
+            };
+            if let Some(error) = err {
+                send_ctrl(tx, &Ctrl::UpdateDone { ok: false, version, error });
+                return Ok(());
+            }
+            let tmp = std::env::temp_dir().join(format!("labcontrol-update-{id}.bin"));
+            let file = tokio::fs::File::create(&tmp).await?;
+            files.insert(id, Incoming { file, tmp: tmp.clone(), dest: tmp, left: size,
+                                        update: Some(UpdateMeta { version, platform, sha256, ts, sig }) });
+        }
+        Ctrl::UpdateEnd { id } => {
+            let Some(mut f) = files.remove(&id) else { return Ok(()) };
+            let Some(m) = f.update.take() else { return Ok(()) };
+            f.file.flush().await?;
+            drop(f.file);
+            let data = tokio::fs::read(&f.tmp).await.unwrap_or_default();
+            let _ = tokio::fs::remove_file(&f.tmp).await;
+            let r: Result<()> = async {
+                if f.left != 0 || auth::sha256_hex(&data) != m.sha256 {
+                    bail!("file nhận thiếu hoặc hỏng");
+                }
+                use base64::Engine;
+                let req = json!({"op": "update", "platform": m.platform, "version": m.version, "sha256": m.sha256,
+                                 "ts": m.ts, "sig": m.sig, "data": base64::engine::general_purpose::STANDARD.encode(&data)});
+                helper::machine_wait(req, Duration::from_secs(90)).await?;
+                Ok(())
+            }.await;
+            match r {
+                Ok(()) => {
+                    send_ctrl(tx, &Ctrl::UpdateDone { ok: true, version: m.version.clone(), error: String::new() });
+                    tracing::info!("Đã cập nhật lên {}, khởi động lại Agent", m.version);
+                    let ui = sh.ui.clone();
+                    tokio::spawn(async move {
+                        tokio::time::sleep(Duration::from_millis(1200)).await;
+                        crate::restart(&ui);
+                    });
+                }
+                Err(e) => send_ctrl(tx, &Ctrl::UpdateDone { ok: false, version: m.version, error: format!("{e:#}") }),
+            }
         }
         Ctrl::FileEnd { id } => {
             if let Some(mut f) = files.remove(&id) {

@@ -5,7 +5,7 @@ mod hub;
 
 use std::sync::Arc;
 
-use hub::{Hub, Pending, QuizRun, Settings, StudentDto, Task};
+use hub::{Hub, Pending, QuizRun, Settings, StudentDto, Task, UpdateInfo};
 use lc_core::proto::{Ctrl, InputEv, Policy, Quiz};
 use serde::Serialize;
 use tauri::{Manager, State};
@@ -26,6 +26,9 @@ struct AppState {
     out_dir: String,
     addresses: Vec<String>,
     version: String,
+    update: Option<UpdateInfo>,
+    /// Hệ điều hành có sẵn file Agent đi kèm để cập nhật máy học sinh
+    bundled: Vec<String>,
 }
 
 /// Địa chỉ IPv4 của máy giáo viên (để học sinh/kỹ thuật viên nhập tay khi mạng chặn tìm máy)
@@ -48,6 +51,7 @@ fn get_state(h: H<'_>) -> AppState {
         teacher_code: h.teacher_code(), settings: h.settings(), students: h.students(), pending: h.pending(),
         showing: h.showing(), policy: h.policy(), tasks: h.tasks(), quiz: h.quiz(), listen_error: h.listen_error(),
         out_dir: h.out_dir().display().to_string(), addresses: local_addresses(), version: env!("CARGO_PKG_VERSION").into(),
+        update: h.latest(), bundled: h.bundled_platforms(),
     }
 }
 
@@ -154,6 +158,32 @@ fn quiz_stop(h: H<'_>) {
 }
 
 #[tauri::command]
+async fn check_update(h: H<'_>) -> Result<UpdateInfo, String> {
+    let h = h.inner().clone();
+    h.check_update().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn push_update(h: H<'_>, ids: Vec<String>, file: Option<String>) -> Result<usize, String> {
+    h.push_update(&ids, file).map_err(|e| e.to_string())
+}
+
+/// Chỉ mở trang của dự án trên GitHub
+#[tauri::command]
+fn open_release(url: String) -> Result<(), String> {
+    if !url.starts_with(&format!("https://github.com/{}/", hub::REPO)) {
+        return Err("Địa chỉ không hợp lệ".into());
+    }
+    #[cfg(windows)]
+    let r = std::process::Command::new("explorer").arg(&url).spawn();
+    #[cfg(target_os = "macos")]
+    let r = std::process::Command::new("open").arg(&url).spawn();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let r = std::process::Command::new("xdg-open").arg(&url).spawn();
+    r.map(|_| ()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn open_quiz_csv(h: H<'_>) -> Result<(), String> {
     let p = h.quiz_csv_path().ok_or("Chưa có bài trắc nghiệm")?;
     open_path(p.parent().unwrap_or(&p))
@@ -177,7 +207,8 @@ pub fn run() {
         .setup(|app| {
             let dir = app.path().app_config_dir()?;
             let out = app.path().document_dir().or_else(|_| app.path().home_dir())?.join("LabControl");
-            let hub = Hub::new(app.handle().clone(), dir, out)?;
+            let res = app.path().resource_dir().ok();
+            let hub = Hub::new(app.handle().clone(), dir, out, res)?;
             hub.clone().start();
             app.manage(hub);
             Ok(())
@@ -185,7 +216,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_state, set_settings, push_password, remove_student, dismiss_pending, set_seat, auto_seats, set_label,
             send_ctrl, input, set_policy, send_files, start_show, stop_show, assign, collect, delete_task, open_task_dir,
-            quiz_start, quiz_stop, open_quiz_csv
+            quiz_start, quiz_stop, open_quiz_csv, check_update, push_update, open_release
         ])
         .run(tauri::generate_context!())
         .expect("không khởi động được LabControl");

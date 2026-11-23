@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
-import { Ban, Gauge, Info, KeyRound, Laptop, RefreshCw, Send } from "lucide-react";
+import { Ban, Download, Gauge, Info, KeyRound, Laptop, RefreshCw, Send } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { api, reload, setSettingsLocal, useStore, type Settings } from "../api";
 import { SOURCE_URL, VERSION } from "../components/About";
 import { Modal, Switch, errText, toast } from "../components/ui";
@@ -52,6 +53,19 @@ export function SettingsModal({ initial, onClose }: { initial: string; onClose: 
   const winCmd = `labcontrol-agent.exe install --password "${s.room_password.trim()}"${room}`;
   const linCmd = `sudo ./labcontrol-agent install --password "${s.room_password.trim()}"${room}`;
   const ipCmd = `${winCmd} --teacher-ip ${st.addresses[0] ?? "<IP máy giáo viên>"}`;
+  const [checking, setChecking] = useState(false);
+  const online = [...st.students.values()].filter((x) => x.state === "online");
+  const outdated = online.filter((x) => x.info.version && x.info.version !== st.version);
+  const push = async (file: string | null) => {
+    try {
+      const n = await api.pushUpdate((file ? online : outdated).map((x) => x.id), file);
+      toast(n ? `Đang gửi bản cập nhật tới ${n} máy` : "Không có máy nào cần cập nhật");
+    } catch (e) { toast(errText(e), "error"); }
+  };
+  const pickFile = async () => {
+    const f = await open({ multiple: false, title: "Chọn file labcontrol-agent (.exe cho Windows, không đuôi cho Linux)" });
+    if (f) push(String(f));
+  };
   const copy = (t: string) => navigator.clipboard.writeText(t).then(() => toast("Đã chép"));
 
   return (
@@ -88,6 +102,15 @@ export function SettingsModal({ initial, onClose }: { initial: string; onClose: 
             <div className="field"><label>Linux</label><div className="code-box">{linCmd}</div></div>
             <div className="field"><label>Khi mạng chặn tự tìm máy (khác VLAN, Wi-Fi cách ly)</label><div className="code-box">{ipCmd}</div>
               <span className="hint">Thêm <span className="mono">--teacher-ip</span> để máy học sinh nối thẳng tới IP máy giáo viên.</span></div>
+            <div className="field"><label>Cập nhật máy học sinh từ xa</label>
+              <div className="small muted">Không cần cài lại từng máy: máy giáo viên gửi phần mềm mới xuống, máy học sinh tự cài và khởi động lại.
+                Bộ cài máy giáo viên đã kèm sẵn bản {st.version} cho {st.bundled.length ? st.bundled.map((b) => b === "windows" ? "Windows" : "Linux").join(" và ") : "—"}.</div>
+              <div className="row wrap">
+                <button className="btn primary" disabled={!outdated.length} onClick={() => push(null)}><RefreshCw size={14} />
+                  {outdated.length ? `Cập nhật ${outdated.length} máy dùng bản cũ` : "Mọi máy trực tuyến đã là bản mới"}</button>
+                <button className="btn" disabled={!online.length} onClick={pickFile}>Dùng file Agent khác…</button>
+              </div>
+              <span className="hint">Chỉ máy đang trực tuyến được cập nhật; máy tắt sẽ hiện “bản cũ” khi vào lớp lần sau. Gói cập nhật có chữ ký của máy giáo viên, máy học sinh không nhận gói từ nơi khác.</span></div>
           </>}
           {sec === "lists" && <>
             <div className="field"><label>Trang web hay chặn</label><textarea className="input mono" rows={7} value={webText} onChange={(e) => setWebText(e.target.value)} />
@@ -115,6 +138,19 @@ export function SettingsModal({ initial, onClose }: { initial: string; onClose: 
               phiên bản 3 hoặc mới hơn (AGPL-3.0-or-later). Phần mềm được cung cấp <b>không kèm bất kỳ bảo đảm nào</b>.</div>
             <div className="field"><label>Mã nguồn</label><div className="code-box">{SOURCE_URL}</div>
               <button className="btn sm" style={{ alignSelf: "flex-start" }} onClick={() => copy(SOURCE_URL)}>Chép địa chỉ</button></div>
+            <div className="field"><label>Cập nhật phần mềm giáo viên</label>
+              <div className="row wrap">
+                <button className="btn" disabled={checking} onClick={async () => {
+                  setChecking(true);
+                  try {
+                    const u = await api.checkUpdate();
+                    toast(u.newer ? `Đã có bản ${u.version}` : `Bạn đang dùng bản mới nhất (${st.version})`);
+                  } catch (e) { toast(errText(e), "error"); }
+                  setChecking(false);
+                }}><RefreshCw size={14} />{checking ? "Đang kiểm tra..." : "Kiểm tra bản mới"}</button>
+                {st.update?.newer && <button className="btn primary" onClick={() => api.openRelease(st.update!.url)}><Download size={14} />Tải bản {st.update.version}</button>}
+              </div>
+              <span className="hint">LabControl tự kiểm tra khi mở và mỗi 12 giờ (cần Internet). Cài bản mới cho máy giáo viên xong, dùng “Cập nhật máy học sinh từ xa” trong mục Cài máy học sinh.</span></div>
             <div className="field"><label>Thư mục bài nộp và kết quả</label><div className="code-box">{st.outDir}</div></div>
           </>}
         </section>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ClipboardList, History, LayoutGrid, Monitor, Moon, Settings as SettingsIcon, Sun } from "lucide-react";
-import { api, notices, setSettingsLocal, startStore, useStore } from "./api";
+import { api, infos, notices, setSettingsLocal, startStore, useStore } from "./api";
 import { Spinner, toast, Toasts } from "./components/ui";
 import { Classroom } from "./pages/Classroom";
 import { LogPage } from "./pages/Log";
@@ -18,8 +18,10 @@ export function App() {
   useEffect(() => {
     startStore().then(() => setReady(true)).catch((e) => { toast(String(e), "error"); setReady(true); });
     const f = (t: string) => toast(t, "error");
+    const g = (t: string) => toast(t);
     notices.add(f);
-    return () => { notices.delete(f); };
+    infos.add(g);
+    return () => { notices.delete(f); infos.delete(g); };
   }, []);
 
   if (!ready) return <div className="center"><Spinner /></div>;

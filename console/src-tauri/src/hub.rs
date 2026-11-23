@@ -147,6 +147,17 @@ pub struct QuizRun {
     pub results: HashMap<String, QuizResult>,
 }
 
+/// Bản LabControl mới trên GitHub
+#[derive(Serialize, Clone, Debug)]
+pub struct UpdateInfo {
+    pub version: String,
+    pub url: String,
+    pub notes: String,
+    pub newer: bool,
+}
+
+pub const REPO: &str = "xonpro147z/labcontrol-2";
+
 struct Show {
     stop: Arc<AtomicBool>,
     targets: Arc<RwLock<Vec<String>>>,
@@ -177,6 +188,8 @@ pub struct Hub {
     file_seq: AtomicU64,
     conn_seq: AtomicU64,
     listen_error: RwLock<String>,
+    res_dir: Option<PathBuf>,
+    latest: RwLock<Option<UpdateInfo>>,
 }
 
 fn read_json<T: for<'de> Deserialize<'de> + Default>(p: &Path) -> T {
@@ -211,7 +224,7 @@ fn safe_rel(rel: &str) -> PathBuf {
 }
 
 impl Hub {
-    pub fn new(app: AppHandle, dir: PathBuf, out_dir: PathBuf) -> Result<Arc<Self>> {
+    pub fn new(app: AppHandle, dir: PathBuf, out_dir: PathBuf, res_dir: Option<PathBuf>) -> Result<Arc<Self>> {
         std::fs::create_dir_all(&dir)?;
         let kp = dir.join("teacher.key");
         let key = match std::fs::read_to_string(&kp) {
@@ -245,7 +258,7 @@ impl Hub {
             settings: RwLock::new(settings), students: Mutex::new(students), machines: Mutex::new(machines),
             pending: Mutex::new(HashMap::new()), show: Mutex::new(None), policy: RwLock::new(Policy::default()),
             tasks: Mutex::new(tasks), quiz: Mutex::new(None), file_seq: AtomicU64::new(1), conn_seq: AtomicU64::new(1),
-            listen_error: RwLock::new(String::new()),
+            listen_error: RwLock::new(String::new()), res_dir, latest: RwLock::new(None),
         }))
     }
 
@@ -334,6 +347,158 @@ impl Hub {
         tauri::async_runtime::spawn(async move { me.poll().await });
         let me = self.clone();
         tauri::async_runtime::spawn(async move { me.refresh_policy().await });
+        // kiểm tra bản mới trên GitHub lúc mở và mỗi 12 giờ (máy không có Internet thì bỏ qua)
+        let me = self.clone();
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            loop {
+                let _ = me.check_update().await;
+                tokio::time::sleep(Duration::from_secs(12 * 3600)).await;
+            }
+        });
+    }
+
+    // -------------------------------------------------------------- bản mới của LabControl
+    pub fn latest(&self) -> Option<UpdateInfo> {
+        self.latest.read().unwrap().clone()
+    }
+
+    pub async fn check_update(&self) -> Result<UpdateInfo> {
+        // Cách 1: GitHub API (có ghi chú phát hành). Cách 2 khi API bị giới hạn: trang /releases/latest
+        // tự chuyển tới /releases/tag/vX.Y.Z.
+        let (tag, url, notes) = tokio::task::spawn_blocking(|| -> Result<(String, String, String)> {
+            let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(15)).build();
+            let api = agent.get(&format!("https://api.github.com/repos/{REPO}/releases/latest"))
+                .set("User-Agent", "LabControl").set("Accept", "application/vnd.github+json").call();
+            if let Ok(r) = api {
+                let v: serde_json::Value = r.into_json()?;
+                if let Some(tag) = v["tag_name"].as_str() {
+                    return Ok((tag.to_string(), v["html_url"].as_str().unwrap_or("").to_string(),
+                               v["body"].as_str().unwrap_or("").chars().take(2000).collect()));
+                }
+            }
+            let r = agent.get(&format!("https://github.com/{REPO}/releases/latest")).set("User-Agent", "LabControl").call()
+                .map_err(|e| anyhow!("Không kết nối được GitHub (máy chưa có Internet?): {e}"))?;
+            let url = r.get_url().to_string();
+            let tag = url.rsplit_once("/tag/").map(|(_, t)| t.to_string()).ok_or_else(|| anyhow!("Chưa có bản phát hành nào"))?;
+            Ok((tag, url, String::new()))
+        }).await??;
+        let info = UpdateInfo {
+            version: tag.trim_start_matches('v').to_string(),
+            url,
+            notes,
+            newer: auth::version_newer(&tag, env!("CARGO_PKG_VERSION")),
+        };
+        *self.latest.write().unwrap() = Some(info.clone());
+        let _ = self.app.emit("update", &info);
+        Ok(info)
+    }
+
+    // -------------------------------------------------------------- đẩy bản cập nhật xuống máy học sinh
+    /// Agent đi kèm bộ cài máy giáo viên (cùng phiên bản với Console)
+    pub fn bundled_agent(&self, platform: &str) -> Option<PathBuf> {
+        let name = if platform == "windows" { "windows/labcontrol-agent.exe" } else { "linux/labcontrol-agent" };
+        let p = self.res_dir.as_ref()?.join("resources").join("agent").join(name);
+        p.is_file().then_some(p)
+    }
+
+    pub fn bundled_platforms(&self) -> Vec<String> {
+        ["windows", "linux"].iter().filter(|p| self.bundled_agent(p).is_some()).map(|p| p.to_string()).collect()
+    }
+
+    fn platform_of(info: &AgentInfo) -> String {
+        if !info.platform.is_empty() {
+            info.platform.clone()
+        } else if info.os.to_lowercase().contains("windows") {
+            "windows".into()
+        } else {
+            "linux".into()
+        }
+    }
+
+    /// Gửi Agent mới tới các máy. `custom`: file Agent giáo viên tự chọn (thay cho bản đi kèm).
+    /// Trả về số máy được gửi.
+    pub fn push_update(self: &Arc<Self>, ids: &[String], custom: Option<String>) -> Result<usize> {
+        let version = env!("CARGO_PKG_VERSION").to_string();
+        let custom = custom.map(PathBuf::from);
+        let custom_platform = custom.as_ref().map(|p| {
+            if p.extension().map(|e| e.eq_ignore_ascii_case("exe")).unwrap_or(false) { "windows" } else { "linux" }.to_string()
+        });
+        let targets: Vec<Arc<Student>> = {
+            let map = self.students.lock().unwrap();
+            ids.iter().filter_map(|i| map.get(i).cloned()).filter(|s| s.online.load(Ordering::Relaxed)).collect()
+        };
+        let mut packs: HashMap<String, Option<(Arc<Vec<u8>>, String, String)>> = HashMap::new();
+        let mut n = 0;
+        let mut missing = vec![];
+        let mut too_old = vec![];
+        for st in targets {
+            let info = st.info.read().unwrap().clone();
+            if info.platform.is_empty() {
+                // Agent trước 3.0.2 chưa biết nhận bản cập nhật từ xa
+                too_old.push(info.name.clone());
+                continue;
+            }
+            let plat = Self::platform_of(&info);
+            if custom.is_none() && info.version == version {
+                continue; // đã là bản mới
+            }
+            if let Some(cp) = &custom_platform {
+                if *cp != plat {
+                    continue;
+                }
+            }
+            let pack = packs.entry(plat.clone()).or_insert_with(|| {
+                let path = custom.clone().or_else(|| self.bundled_agent(&plat))?;
+                let data = std::fs::read(path).ok()?;
+                let sha = auth::sha256_hex(&data);
+                let ver = if custom.is_some() { format!("{version}-tuy-chon-{}", &sha[..8]) } else { version.clone() };
+                Some((Arc::new(data), sha, ver))
+            }).clone();
+            let Some((data, sha, ver)) = pack else {
+                missing.push(info.name.clone());
+                continue;
+            };
+            let ts = now_ms();
+            let sig = auth::sign_policy(&self.key, &auth::update_message(&plat, &ver, &sha), ts);
+            let id = self.file_seq.fetch_add(1, Ordering::Relaxed);
+            let begin = Ctrl::UpdateBegin { id, version: ver, platform: plat, size: data.len() as u64, sha256: sha, ts, sig };
+            let Some(tx) = st.tx() else { continue };
+            n += 1;
+            let me = self.clone();
+            let name = info.name.clone();
+            tauri::async_runtime::spawn(async move {
+                let r: Result<()> = async {
+                    tx.send((K_CTRL, Arc::new(proto::ctrl_bytes(&begin)))).await?;
+                    for chunk in data.chunks(256 * 1024) {
+                        let mut c = Vec::with_capacity(chunk.len() + 8);
+                        c.extend_from_slice(&id.to_be_bytes());
+                        c.extend_from_slice(chunk);
+                        tx.send((K_FILE, Arc::new(c))).await?;
+                    }
+                    tx.send((K_CTRL, Arc::new(proto::ctrl_bytes(&Ctrl::UpdateEnd { id })))).await?;
+                    Ok(())
+                }.await;
+                if let Err(e) = r {
+                    me.notice(format!("{name}: không gửi được bản cập nhật ({e:#})"));
+                }
+            });
+        }
+        if !too_old.is_empty() {
+            let msg = format!("{} máy dùng bản cũ hơn 3.0.2 ({}) chưa nhận được cập nhật từ xa: hãy cài lại bằng tay một lần.",
+                              too_old.len(), too_old.join(", "));
+            if n == 0 && missing.is_empty() {
+                bail!("{msg}");
+            }
+            self.notice(msg);
+        }
+        if !missing.is_empty() && n == 0 {
+            bail!("Không có file Agent cho máy: {}. Hãy chọn file Agent bằng “Dùng file khác…”.", missing.join(", "));
+        }
+        if !missing.is_empty() {
+            self.notice(format!("Thiếu file Agent cho: {}", missing.join(", ")));
+        }
+        Ok(n)
     }
 
     // -------------------------------------------------------------- trả lời máy học sinh đang tìm
@@ -505,7 +670,7 @@ impl Hub {
                             }
                         }
                     }
-                    K_CTRL => match proto::parse_ctrl(&d)? {
+                    K_CTRL => match proto::parse_ctrl(&d).unwrap_or(Ctrl::Pong) {
                         Ctrl::Status { status } => {
                             *st.status.write().unwrap() = Some(status.clone());
                             let _ = self.app.emit("status", json!({"id": st.id, "status": status}));
@@ -536,6 +701,14 @@ impl Hub {
                                                                      "done": true, "files": files, "error": error}));
                         }
                         Ctrl::QuizAnswer { id, answers, user, done } => self.quiz_answer(&st, &id, answers, user, done),
+                        Ctrl::UpdateDone { ok, version, error } => {
+                            let name = st.info.read().unwrap().name.clone();
+                            if ok {
+                                let _ = self.app.emit("info", format!("{name}: đã cập nhật lên {version}, đang khởi động lại"));
+                            } else {
+                                self.notice(format!("{name}: cập nhật thất bại – {error}"));
+                            }
+                        }
                         _ => {}
                     },
                     _ => {}

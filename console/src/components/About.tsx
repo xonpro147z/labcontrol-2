@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Code2, Copy } from "lucide-react";
 import { Modal, toast } from "./ui";
 
-export const VERSION = "3.0.1";
+export const VERSION = "3.0.2";
 export const SOURCE_URL = "https://github.com/xonpro147z/labcontrol-2";
 
 /** Liên kết "Mã nguồn mở" – đáp ứng điều 13 của AGPL-3.0. */

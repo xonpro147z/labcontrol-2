@@ -2,6 +2,21 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.0.2] – 2026-11-23
+
+### Thêm
+- **Báo bản mới cho máy giáo viên**: LabControl tự kiểm tra GitHub khi mở và mỗi 12 giờ, hiện dải "Đã có LabControl x.y.z – Xem & tải về".
+  Có nút "Kiểm tra bản mới" trong Cài đặt › Giới thiệu.
+- **Cập nhật máy học sinh từ xa**: bộ cài máy giáo viên mang theo Agent cùng phiên bản (Windows + Linux).
+  Nút "N máy dùng bản cũ · Cập nhật" gửi bản mới xuống; Helper (quyền hệ thống) kiểm tra chữ ký của giáo viên
+  và mã băm SHA-256, cài đặt rồi khởi động lại Agent. Có thể chọn file Agent khác trong Cài đặt › Cài máy học sinh.
+
+### Sửa
+- Lệnh lạ từ phiên bản khác không còn làm ngắt kết nối.
+
+### Lưu ý
+- Máy học sinh đang dùng 3.0.0 / 3.0.1 phải cài lại bằng tay **một lần** lên 3.0.2; từ đó về sau cập nhật từ xa được.
+
 ## [3.0.1] – 2026-11-23
 
 ### Thêm

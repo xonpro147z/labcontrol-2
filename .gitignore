@@ -12,3 +12,4 @@ console/src-tauri/icons/ios/
 sim-state/
 data/
 .DS_Store
+console/src-tauri/resources/agent/*/

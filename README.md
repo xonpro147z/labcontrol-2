@@ -31,6 +31,7 @@ Tính năng:
   - **chế độ thi**.
 - **Bài tập:** giao bài, thu bài về máy giáo viên theo từng máy.
 - **Trắc nghiệm:** soạn nhanh bằng văn bản, đếm giờ, chấm điểm tự động, xuất CSV.
+- **Cập nhật:** máy giáo viên tự báo bản mới; đẩy bản cập nhật xuống cả phòng máy học sinh bằng một nút (có chữ ký số).
 
 Hướng dẫn cài đặt và sử dụng: **[docs/HUONG-DAN.md](docs/HUONG-DAN.md)**
 

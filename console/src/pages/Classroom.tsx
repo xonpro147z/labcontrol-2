@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AppWindow, Ban, BookOpen, Cast, ChevronDown, ClipboardCheck, Eye, FileUp, Globe, KeyRound, LayoutGrid, List,
   Lock, MessageSquare, MonitorOff, MousePointer2, Pencil, Power, Search, ShieldAlert, ShieldCheck, ShieldOff, Trash2,
-  Unlock, UserX, Wand2, WifiOff, X, Armchair, Rocket,
+  Unlock, UserX, Wand2, WifiOff, X, Armchair, Rocket, Download, RefreshCw,
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { api, displayName, NO_POLICY, useStore, type Policy, type Student } from "../api";
@@ -35,9 +35,17 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
   const [menu, setMenu] = useState<{ k: MenuKind; a: HTMLElement; s?: Student } | null>(null);
   const [dlg, setDlg] = useState<Dlg | null>(null);
   const [showPw, setShowPw] = useState(false);
+  const [hideUpd, setHideUpd] = useState(false);
 
   const all = useMemo(() => [...students.values()], [students]);
   const online = all.filter((s) => s.state === "online");
+  const outdated = online.filter((s) => s.info.version && s.info.version !== st.version);
+  const askUpdate = (list: Student[]) => setDlg({
+    k: "confirm", title: `Cập nhật ${list.length} máy học sinh lên ${st.version}?`, ok: "Cập nhật",
+    text: <>Máy giáo viên gửi phần mềm mới xuống, máy học sinh tự cài và khởi động lại LabControl (khoảng 10–30 giây,
+      học sinh không cần làm gì). Bài đang làm không bị ảnh hưởng.</>,
+    run: async () => { const n = await api.pushUpdate(list.map((s) => s.id), null); toast(`Đang gửi bản cập nhật tới ${n} máy`); },
+  });
   const list = useMemo(() => {
     const k = q.trim().toLowerCase();
     let v = all.filter((s) => tab === "all" || (tab === "online" ? s.state === "online" : s.state === "offline"));
@@ -103,6 +111,8 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
         {policy.exam && <span className="chip warn"><ShieldAlert size={13} />Chế độ thi</span>}
         {policy.block_web.length > 0 && <span className="chip warn"><Globe size={13} />Chặn {policy.block_web.length} trang web</span>}
         {(policy.block_tools || policy.block_apps.length > 0) && !policy.exam && <span className="chip warn"><AppWindow size={13} />Chặn ứng dụng</span>}
+        {outdated.length > 0 && <button className="chip warn" title={`Máy giáo viên đang dùng bản ${st.version}`} onClick={() => askUpdate(outdated)}>
+          <RefreshCw size={13} />{outdated.length} máy dùng bản cũ · Cập nhật</button>}
         <div className="right" />
       </div>
 
@@ -134,6 +144,13 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
         <span className="target-note">{targetNote}</span>
       </div>
 
+      {st.update?.newer && !hideUpd && (
+        <div className="banner info"><Download size={16} />Đã có LabControl <b>{st.update.version}</b> (bạn đang dùng {st.version}).
+          <div className="row right">
+            <button className="btn sm primary" onClick={() => api.openRelease(st.update!.url).catch((e) => toast(errText(e), "error"))}>Xem & tải về</button>
+            <button className="btn sm ghost" onClick={() => setHideUpd(true)}>Ẩn</button>
+          </div></div>
+      )}
       {st.listenError && <div className="banner err"><WifiOff size={16} />{st.listenError}</div>}
       {pending.length > 0 && tab !== "pending" && (
         <div className="banner warn"><UserX size={16} />{pending.length} máy học sinh chưa vào được lớp (chưa ghép hoặc sai mật khẩu phòng).
@@ -228,6 +245,7 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
             <button onClick={() => { setMenu(null); api.send(id, { t: "unlock" }); }}><Unlock size={16} />Mở khóa</button>
             <button onClick={() => { setMenu(null); setSel(new Set(id)); setDlg({ k: "message" }); }}><MessageSquare size={16} />Gửi tin nhắn</button>
           </>}
+          {on && s.info.version !== st.version && <button onClick={() => { setMenu(null); askUpdate([s]); }}><RefreshCw size={16} />Cập nhật phần mềm ({s.info.version || "?"} → {st.version})</button>}
           <button onClick={() => { setMenu(null); setDlg({ k: "rename", s }); }}><Pencil size={16} />Đặt tên hiển thị</button>
           {!on && <button className="danger" onClick={() => { setMenu(null); setDlg({ k: "confirm", title: "Gỡ máy khỏi danh sách?", danger: true, ok: "Gỡ",
             text: "Máy này sẽ hiện lại khi tự nối về. Muốn máy không nối về nữa, hãy gỡ LabControl trên máy đó.", run: () => api.remove(s.id) }); }}>

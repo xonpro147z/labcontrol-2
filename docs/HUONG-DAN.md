@@ -190,7 +190,24 @@ Ghi lại trong buổi học:
 | Hình ảnh & tốc độ | Chu kỳ cập nhật ảnh, độ nét, khung hình/giây khi trình chiếu |
 | Nền tối | Nút cuối thanh bên trái |
 
-## 7. Cổng mạng
+## 7. Cập nhật phần mềm
+
+**Máy giáo viên:** LabControl tự kiểm tra bản mới trên GitHub khi mở và mỗi 12 giờ (cần Internet). Khi có bản mới, màn hình
+Lớp học hiện dải *"Đã có LabControl x.y.z"* → bấm **Xem & tải về**, tải bộ cài và cài đè lên bản cũ (cấu hình, mật khẩu phòng,
+danh sách máy được giữ nguyên). Kiểm tra bằng tay: **Cài đặt → Giới thiệu → Kiểm tra bản mới**.
+
+**Máy học sinh – cập nhật từ xa, không cần đi từng máy:**
+1. Cập nhật máy giáo viên trước (bộ cài máy giáo viên mang sẵn phần mềm máy học sinh cùng phiên bản).
+2. Trên màn hình Lớp học bấm **"N máy dùng bản cũ · Cập nhật"** (hoặc chuột phải một máy → Cập nhật phần mềm,
+   hoặc **Cài đặt → Cài máy học sinh → Cập nhật máy học sinh từ xa**).
+3. Máy học sinh nhận bản mới, tự cài và khởi động lại LabControl trong khoảng 10–30 giây. Học sinh không cần làm gì.
+
+- Chỉ máy đang trực tuyến được cập nhật; máy đang tắt sẽ hiện "bản cũ" khi vào lớp lần sau.
+- Gói cập nhật có chữ ký của máy giáo viên đã ghép và được kiểm tra mã băm, nên máy học sinh không nhận gói từ nơi khác.
+- Máy học sinh đang dùng **3.0.0 hoặc 3.0.1** phải cài lại bằng tay **một lần** (chạy lại `cai-may-hoc-sinh.cmd` /
+  `install-agent-linux.sh` của bản mới, cùng mật khẩu phòng). Từ 3.0.2 trở đi cập nhật từ xa được.
+
+## 8. Cổng mạng
 
 | Cổng | Máy | Dùng cho |
 |---|---|---|
@@ -200,7 +217,7 @@ Ghi lại trong buổi học:
 
 Máy học sinh không mở cổng nào ra mạng.
 
-## 8. Lỗi thường gặp
+## 9. Lỗi thường gặp
 
 | Hiện tượng | Cách xử lý |
 |---|---|
@@ -224,14 +241,14 @@ Lệnh quản trị trên máy học sinh:
 - `labcontrol-agent forget`: quên các máy giáo viên đã ghép.
 - `labcontrol-agent uninstall` hoặc `go-may-hoc-sinh.cmd`: gỡ.
 
-## 9. Nâng cấp từ bản 2
+## 10. Nâng cấp từ bản 2
 
 - Cài LabControl 3 trên máy giáo viên (giữ nguyên khóa giáo viên cũ).
 - Cài lại máy học sinh bằng `cai-may-hoc-sinh.cmd` với mật khẩu phòng.
 - Các máy đã nhận mã giáo viên ở bản 2 vào lớp ngay, không cần ghép lại.
 - Bản 3 không còn mở cổng 47900 trên máy học sinh. Bộ cài xóa luật tường lửa cũ.
 
-## 10. Giới hạn hiện tại
+## 11. Giới hạn hiện tại
 
 - **Agent chạy dưới tài khoản học sinh.**
   - Học sinh dùng tài khoản quản trị có thể tắt Agent; nên cho học sinh dùng tài khoản thường.

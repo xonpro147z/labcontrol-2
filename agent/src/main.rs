@@ -236,34 +236,31 @@ fn install_helper(exe: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
-fn install_path() -> std::path::PathBuf {
+/// Khởi động lại Agent bằng bản vừa cài (sau khi cập nhật).
+pub fn restart(ui: &uiman::UiMan) {
+    ui.shutdown();
+    let exe = config::install_path();
+    let exe = if exe.exists() { exe } else { std::env::current_exe().unwrap_or(exe) };
+    let mut c = std::process::Command::new(&exe);
+    c.arg("run");
     #[cfg(windows)]
     {
-        std::path::PathBuf::from(std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".into()))
-            .join("LabControl").join("labcontrol-agent.exe")
+        use std::os::windows::process::CommandExt;
+        c.creation_flags(0x0000_0008); // DETACHED_PROCESS
     }
-    #[cfg(not(windows))]
-    {
-        std::path::PathBuf::from("/usr/local/bin/labcontrol-agent")
+    if let Err(e) = c.spawn() {
+        tracing::error!("Không chạy được bản mới {}: {e}", exe.display());
     }
+    std::process::exit(0);
 }
 
 fn copy_self() -> Result<std::path::PathBuf> {
     let me = std::env::current_exe()?;
-    let dest = install_path();
-    if me != dest {
-        if let Some(d) = dest.parent() {
-            std::fs::create_dir_all(d).context("Không tạo được thư mục cài đặt (cần quyền quản trị)")?;
-        }
-        // đang chạy bản cũ thì đổi tên trước khi chép đè (Windows khóa file đang chạy)
-        if dest.exists() {
-            let old = dest.with_extension("old");
-            let _ = std::fs::remove_file(&old);
-            let _ = std::fs::rename(&dest, &old);
-        }
-        std::fs::copy(&me, &dest).context("Không chép được Agent vào thư mục cài đặt (cần quyền quản trị)")?;
+    let dest = config::install_path();
+    if me == dest {
+        return Ok(dest);
     }
-    Ok(dest)
+    config::install_binary(&me)
 }
 
 #[cfg(windows)]
@@ -304,6 +301,6 @@ fn uninstall() -> Result<()> {
         let _ = std::fs::remove_file("/etc/systemd/system/labcontrol-helper.service");
     }
     let _ = helper::apply_hosts(&[]);
-    println!("Đã gỡ LabControl. Agent dừng ở lần đăng nhập sau. Có thể xóa {} nếu muốn.", install_path().display());
+    println!("Đã gỡ LabControl. Agent dừng ở lần đăng nhập sau. Có thể xóa {} nếu muốn.", config::install_path().display());
     Ok(())
 }
