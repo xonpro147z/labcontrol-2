@@ -18,7 +18,7 @@ export interface Pending { id: string; name: string; user: string; ip: string; r
 export interface Settings {
   teacher_name: string; room: string; room_password: string; accept_new: boolean;
   thumb_seconds: number; thumb_width: number; show_fps: number; show_quality: number;
-  web_list: string[]; app_list: string[]; dark: boolean; seat_cols: number;
+  web_list: string[]; app_list: string[]; run_list: string[]; dark: boolean; seat_cols: number;
 }
 export interface Policy { block_web: string[]; block_tools: boolean; block_apps: string[]; exam: boolean }
 export const NO_POLICY: Policy = { block_web: [], block_tools: false, block_apps: [], exam: false };
@@ -30,7 +30,7 @@ export interface QuizRun { quiz: Quiz; started: number; running: boolean; result
 
 export type Ctrl =
   | { t: "lock"; message: string } | { t: "unlock" } | { t: "message"; text: string } | { t: "open_url"; url: string }
-  | { t: "power"; action: "shutdown" | "restart" | "logoff" } | { t: "close_app"; name: string }
+  | { t: "power"; action: "shutdown" | "restart" | "logoff" } | { t: "close_app"; name: string } | { t: "run_app"; cmd: string }
   | { t: "stream_start"; width: number; fps: number; quality: number } | { t: "stream_stop" };
 
 export type InputEv =

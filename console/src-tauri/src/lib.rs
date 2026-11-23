@@ -91,7 +91,7 @@ fn set_label(h: H<'_>, id: String, label: String) {
 fn send_ctrl(h: H<'_>, ids: Vec<String>, msg: Ctrl) -> Result<usize, String> {
     match msg {
         Ctrl::Lock { .. } | Ctrl::Unlock | Ctrl::Message { .. } | Ctrl::OpenUrl { .. } | Ctrl::Power { .. }
-        | Ctrl::StreamStart { .. } | Ctrl::StreamStop | Ctrl::CloseApp { .. } => Ok(h.send_ctrl(&ids, &msg)),
+        | Ctrl::StreamStart { .. } | Ctrl::StreamStop | Ctrl::CloseApp { .. } | Ctrl::RunApp { .. } => Ok(h.send_ctrl(&ids, &msg)),
         _ => Err("Lệnh không được phép".into()),
     }
 }

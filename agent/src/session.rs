@@ -276,6 +276,15 @@ async fn handle(
                 send_ctrl(tx, &Ctrl::Notice { text: if k > 0 { format!("Đã đóng {name}") } else { format!("Không thấy {name} đang chạy") } });
             }
         }
+        Ctrl::RunApp { cmd } => {
+            let r = tokio::task::spawn_blocking({
+                let cmd = cmd.clone();
+                move || sys::run_app(&cmd)
+            }).await;
+            if let Ok(Err(e)) = r {
+                send_ctrl(tx, &Ctrl::Notice { text: format!("Không mở được {cmd}: {e}") });
+            }
+        }
         // ----------------------------------------------------------- bài tập
         Ctrl::Assign { task, title, text } => {
             match tasks::assign(&task, &title, &text) {

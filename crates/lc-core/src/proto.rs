@@ -143,6 +143,8 @@ pub enum Ctrl {
     SetPolicy { policy: Policy, ts: u64, sig: String },
     /// Đóng một ứng dụng đang mở (theo tên tiến trình)
     CloseApp { name: String },
+    /// Mở ứng dụng trên máy học sinh (tên chương trình, đường dẫn hoặc dòng lệnh)
+    RunApp { cmd: String },
     /// Giao bài: tạo thư mục bài làm, hiện đề bài
     Assign { task: String, title: String, text: String },
     /// Thu bài: gửi các file trong thư mục bài làm về máy giáo viên

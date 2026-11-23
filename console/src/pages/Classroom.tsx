@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AppWindow, Ban, BookOpen, Cast, ChevronDown, ClipboardCheck, Eye, FileUp, Globe, KeyRound, LayoutGrid, List,
   Lock, MessageSquare, MonitorOff, MousePointer2, Pencil, Power, Search, ShieldAlert, ShieldCheck, ShieldOff, Trash2,
-  Unlock, UserX, Wand2, WifiOff, X, Armchair,
+  Unlock, UserX, Wand2, WifiOff, X, Armchair, Rocket,
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { api, displayName, NO_POLICY, useStore, type Policy, type Student } from "../api";
@@ -13,7 +13,7 @@ type Tab = "all" | "online" | "offline" | "pending";
 type View = "grid" | "plan" | "list";
 type MenuKind = "lock" | "show" | "web" | "apps" | "power" | "ctx";
 type Dlg =
-  | { k: "message" } | { k: "lock" } | { k: "url" } | { k: "assign" } | { k: "close" } | { k: "rename"; s: Student }
+  | { k: "message" } | { k: "lock" } | { k: "url" } | { k: "run" } | { k: "assign" } | { k: "close" } | { k: "rename"; s: Student }
   | { k: "confirm"; title: string; text: ReactNode; danger?: boolean; ok: string; run: () => Promise<unknown> | void };
 
 function natural(a: string, b: string) {
@@ -112,6 +112,7 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
         {tool(<MessageSquare size={18} />, "Tin nhắn", () => needOnline() && setDlg({ k: "message" }))}
         {tool(<FileUp size={18} />, "Gửi file", sendFiles)}
         {tool(<Globe size={18} />, "Mở web", () => needOnline() && setDlg({ k: "url" }))}
+        {tool(<Rocket size={18} />, "Mở ứng dụng", () => needOnline() && setDlg({ k: "run" }))}
         <div className="sep" />
         {tool(<BookOpen size={18} />, "Bài tập", () => needOnline() && setDlg({ k: "assign" }))}
         {tool(<ClipboardCheck size={18} />, "Trắc nghiệm", goTasks)}
@@ -244,6 +245,10 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
           const url = /^https?:\/\//.test(t) ? t : `https://${t}`;
           return run("Đã mở trang web", () => api.send(targets, { t: "open_url", url }));
         }} />}
+      {dlg?.k === "run" && <RunAppDialog note={targetNote} custom={settings?.run_list ?? []}
+        oses={online.filter((s) => targets.includes(s.id)).map((s) => s.info.os)}
+        onClose={() => setDlg(null)} onEdit={() => { setDlg(null); openSettings("lists"); }}
+        onOk={(c) => run(`Đã mở ${c}`, () => api.send(targets, { t: "run_app", cmd: c }))} />}
       {dlg?.k === "close" && <CloseAppDialog note={targetNote} apps={[...new Set(online.filter((s) => targets.includes(s.id)).map((s) => s.status?.app).filter(Boolean) as string[])]}
         onClose={() => setDlg(null)} onOk={(n) => run(`Đã yêu cầu đóng ${n}`, () => api.send(targets, { t: "close_app", name: n }))} />}
       {dlg?.k === "assign" && <AssignDialog note={targetNote} onClose={() => setDlg(null)}
@@ -502,5 +507,39 @@ function AssignDialog({ note, onClose, onOk }: { note: string; onClose: () => vo
       <span className="hint">Máy học sinh tạo thư mục <b>BaiLam\{title.trim() || "<tên bài>"}</b> trên màn hình nền, kèm file DE-BAI.txt. {note}.
         Thu bài ở trang “Bài & kiểm tra”.</span></div>
     {err && <div className="err">{err}</div>}
+  </Modal>;
+}
+
+// ------------------------------------------------------------------ mở ứng dụng
+const WIN_APPS: [string, string][] = [
+  ["Notepad", "notepad"], ["Paint", "mspaint"], ["Máy tính", "calc"], ["Word", "winword"], ["Excel", "excel"],
+  ["PowerPoint", "powerpnt"], ["File Explorer", "explorer"], ["Chrome", "chrome"], ["Edge", "msedge"],
+];
+const LINUX_APPS: [string, string][] = [
+  ["Soạn văn bản", "xed"], ["Writer", "libreoffice --writer"], ["Calc", "libreoffice --calc"],
+  ["Impress", "libreoffice --impress"], ["Quản lý file", "nemo"], ["Firefox", "firefox"], ["Chrome", "google-chrome"],
+];
+
+function RunAppDialog({ note, custom, oses, onClose, onOk, onEdit }: {
+  note: string; custom: string[]; oses: string[]; onClose: () => void; onOk: (c: string) => unknown; onEdit: () => void;
+}) {
+  const [c, setC] = useState("");
+  const win = oses.some((o) => /windows/i.test(o));
+  const lin = oses.some((o) => !/windows/i.test(o));
+  const quick: [string, string][] = [
+    ...custom.map((x) => [x.split(/[\\/]/).pop()!.replace(/\.exe"?$/i, "").replace(/^"/, ""), x] as [string, string]),
+    ...(win ? WIN_APPS : []), ...(lin ? LINUX_APPS : []),
+  ];
+  const go = async () => { if (c.trim()) { await onOk(c.trim()); onClose(); } };
+  return <Modal title="Mở ứng dụng trên máy học sinh" onClose={onClose} footer={<>
+    <button className="btn ghost" style={{ marginRight: "auto" }} onClick={onEdit}>Sửa danh sách...</button>
+    <button className="btn" onClick={onClose}>Hủy</button>
+    <button className="btn primary" disabled={!c.trim()} onClick={go}>Mở</button></>}>
+    <div className="field"><label>Ứng dụng</label>
+      <input className="input mono" autoFocus placeholder={win ? "vd: notepad, winword, C:\\...\\Scratch 3.exe" : "vd: firefox, libreoffice --writer"}
+             value={c} onChange={(e) => setC(e.target.value)} onKeyDown={(e) => e.key === "Enter" && go()} />
+      <span className="hint">Tên chương trình, đường dẫn đầy đủ, hoặc lệnh có tham số. {note}.</span></div>
+    {quick.length > 0 && <div className="field"><label>Chọn nhanh</label>
+      <div className="pills">{quick.map(([label, cmd]) => <button key={cmd} className={`pill ${c === cmd ? "on" : ""}`} title={cmd} onClick={() => setC(cmd)}>{label}</button>)}</div></div>}
   </Modal>;
 }

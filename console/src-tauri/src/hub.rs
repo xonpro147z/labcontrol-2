@@ -45,6 +45,8 @@ pub struct Settings {
     pub web_list: Vec<String>,
     /// Danh sách ứng dụng hay chặn
     pub app_list: Vec<String>,
+    /// Ứng dụng hay mở trên máy học sinh (tên hoặc đường dẫn)
+    pub run_list: Vec<String>,
     pub dark: bool,
     /// Số cột của sơ đồ phòng
     pub seat_cols: u32,
@@ -59,6 +61,7 @@ impl Default for Settings {
                 .iter().map(|s| s.to_string()).collect(),
             app_list: ["zalo.exe", "telegram.exe", "discord.exe", "chrome.exe", "msedge.exe", "firefox.exe"]
                 .iter().map(|s| s.to_string()).collect(),
+            run_list: vec![],
             dark: false, seat_cols: 6,
         }
     }

@@ -99,3 +99,38 @@ pub fn power(action: &str) {
         let _ = std::process::Command::new(p).args(a).spawn();
     }
 }
+
+/// Mở ứng dụng theo yêu cầu của giáo viên: tên chương trình ("notepad", "firefox"), đường dẫn,
+/// hoặc dòng lệnh có tham số ("libreoffice --writer"). Đường dẫn có dấu cách tự được đặt trong ngoặc kép.
+pub fn run_app(cmd: &str) -> std::io::Result<()> {
+    let cmd = cmd.trim();
+    if cmd.is_empty() {
+        return Err(std::io::Error::other("chưa nhập ứng dụng"));
+    }
+    let line = if !cmd.starts_with('"') && std::path::Path::new(cmd).exists() { format!("\"{cmd}\"") } else { cmd.to_string() };
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // "start" tìm được cả ứng dụng đăng ký trong App Paths (winword, excel, chrome...)
+        std::process::Command::new("cmd").raw_arg(format!("/C start \"\" {line}"))
+            .creation_flags(0x0800_0000).spawn()?;
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        // kiểm tra chương trình có trên máy không (bỏ qua khi đường dẫn nằm trong ngoặc kép)
+        let check = if line.starts_with('"') {
+            String::new()
+        } else {
+            let first = line.split_whitespace().next().unwrap_or("");
+            format!("command -v '{first}' >/dev/null 2>&1 || [ -e '{first}' ] || exit 127; ")
+        };
+        let status = std::process::Command::new("sh").arg("-c")
+            .arg(format!("{check}setsid {line} >/dev/null 2>&1 &"))
+            .status()?;
+        if status.code() == Some(127) {
+            return Err(std::io::Error::other("không tìm thấy ứng dụng trên máy này"));
+        }
+        Ok(())
+    }
+}

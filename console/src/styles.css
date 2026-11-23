@@ -106,13 +106,13 @@ input[type=range] { accent-color: var(--pri); }
 
 /* ---------- nội dung ---------- */
 .content { flex: 1; overflow: auto; padding: 4px 20px 24px; min-height: 0; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--tile), 1fr)); gap: 14px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--tile), 1fr)); gap: 14px; align-items: start; align-content: start; }
 .tile { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; cursor: pointer;
   box-shadow: var(--shadow); transition: box-shadow .12s, border-color .12s; position: relative; user-select: none; }
 .tile:hover { border-color: var(--pri-100); box-shadow: 0 6px 18px -8px rgba(13, 148, 136, .45); }
 .tile.sel { border-color: var(--pri); box-shadow: 0 0 0 2px var(--pri); }
-.tile .shot { aspect-ratio: 16 / 10; background: #0b1820; display: grid; place-items: center; position: relative; }
-.tile .shot img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.tile .shot { aspect-ratio: 16 / 10; overflow: hidden; background: #0b1820; display: grid; place-items: center; position: relative; }
+.tile .shot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
 .tile.off .shot { background: repeating-linear-gradient(45deg, var(--line-2), var(--line-2) 8px, var(--card) 8px, var(--card) 16px); }
 .tile.off .shot svg { color: var(--muted); }
 .tile .flags { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; }

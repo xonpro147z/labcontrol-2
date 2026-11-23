@@ -73,6 +73,10 @@ pub fn run(mode: &str, text: &str, fullscreen: bool) -> anyhow::Result<()> {
                 vp.with_inner_size([sw * 0.7, sh * 0.7]).with_title("Giáo viên đang trình chiếu")
             };
             Box::new(move |ctx| {
+                // trình chiếu toàn màn hình: học sinh không thoát ra màn hình chính được (giống màn hình khóa)
+                if fullscreen {
+                    block_input();
+                }
                 let shared: Arc<Mutex<Option<egui::ColorImage>>> = Default::default();
                 let s2 = shared.clone();
                 let c2 = ctx.clone();
@@ -249,6 +253,18 @@ impl eframe::App for View {
         let ctx = &root.ctx().clone();
         if self.fullscreen {
             keep_open(ctx);
+            // luôn ở trên cùng, giữ tiêu điểm, bị thu nhỏ thì phóng lại
+            let (min, full, focus) = ctx.input(|i| (i.viewport().minimized, i.viewport().fullscreen, i.viewport().focused));
+            if min == Some(true) {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+            }
+            if full == Some(false) {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
+            }
+            if focus != Some(true) {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            }
+            ctx.request_repaint_after(std::time::Duration::from_millis(500));
         }
         if let Some(img) = self.shared.lock().unwrap().take() {
             match &mut self.tex {

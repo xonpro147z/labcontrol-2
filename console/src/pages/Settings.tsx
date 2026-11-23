@@ -24,6 +24,7 @@ export function SettingsModal({ initial, onClose }: { initial: string; onClose: 
   const [s, setS] = useState<Settings>(st.settings!);
   const [webText, setWebText] = useState(st.settings!.web_list.join("\n"));
   const [appText, setAppText] = useState(st.settings!.app_list.join("\n"));
+  const [runText, setRunText] = useState((st.settings!.run_list ?? []).join("\n"));
   const [err, setErr] = useState("");
   const pwChanged = s.room_password.trim() !== st.settings!.room_password;
   const up = (p: Partial<Settings>) => setS({ ...s, ...p });
@@ -33,6 +34,7 @@ export function SettingsModal({ initial, onClose }: { initial: string; onClose: 
       ...s, room_password: s.room_password.trim(), room: s.room.trim(),
       web_list: webText.split(/[\s,]+/).map((x) => x.trim().toLowerCase()).filter(Boolean),
       app_list: appText.split(/[\n,]+/).map((x) => x.trim()).filter(Boolean),
+      run_list: runText.split("\n").map((x) => x.trim()).filter(Boolean),
     };
     try {
       await api.setSettings(next);
@@ -92,6 +94,9 @@ export function SettingsModal({ initial, onClose }: { initial: string; onClose: 
               <span className="hint">Mỗi dòng một tên miền. Hiện thành nút chọn nhanh trong “Chặn web”.</span></div>
             <div className="field"><label>Ứng dụng hay chặn</label><textarea className="input mono" rows={6} value={appText} onChange={(e) => setAppText(e.target.value)} />
               <span className="hint">Tên tiến trình, vd <span className="mono">zalo.exe</span>. Xem tên trong Task Manager › Details.</span></div>
+            <div className="field"><label>Ứng dụng hay mở cho học sinh</label><textarea className="input mono" rows={4} value={runText} onChange={(e) => setRunText(e.target.value)}
+              placeholder={"C:\\Program Files (x86)\\Scratch 3\\Scratch 3.exe\nscratch-desktop"} />
+              <span className="hint">Mỗi dòng một ứng dụng: tên chương trình, đường dẫn đầy đủ, hoặc lệnh có tham số. Hiện thành nút chọn nhanh trong “Mở ứng dụng”.</span></div>
           </>}
           {sec === "perf" && <>
             <div className="field"><label>Cập nhật ảnh màn hình mỗi {s.thumb_seconds} giây</label>

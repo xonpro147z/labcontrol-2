@@ -4,7 +4,7 @@
 //!   cargo run --example gia_lap_giao_vien -- <thư mục dữ liệu> <mật khẩu phòng> [lệnh...]
 //!
 //! Lệnh: status | thumb | msg:<chữ> | lock | unlock | assign:<tên> | collect:<tên> | quiz | quizstop
-//!       | tools | exam | web:<miền> | clear | close:<tên tiến trình> | setpw:<mật khẩu> | sleep:<giây>
+//!       | tools | exam | web:<miền> | clear | close:<tên tiến trình> | run:<ứng dụng> | setpw:<mật khẩu> | sleep:<giây>
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use lc_core::handshake::{self, TeacherSide};
@@ -113,6 +113,7 @@ async fn main() -> anyhow::Result<()> {
             "web" => pol(Policy { block_web: vec![arg.into()], ..Default::default() }, &key),
             "clear" => pol(Policy::default(), &key),
             "close" => Ctrl::CloseApp { name: arg.into() },
+            "run" => Ctrl::RunApp { cmd: arg.into() },
             "setpw" => {
                 let ts = now();
                 Ctrl::SetPairPassword { password: arg.into(), ts, sig: auth::sign_policy(&key, &format!("password:{arg}"), ts) }

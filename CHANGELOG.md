@@ -2,6 +2,17 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.0.1] – 2026-11-23
+
+### Thêm
+- **Mở ứng dụng** trên máy học sinh: nhập tên chương trình, đường dẫn hoặc lệnh; có nút chọn nhanh (Word, Excel, PowerPoint,
+  Paint, LibreOffice...) và danh sách ứng dụng riêng trong Cài đặt › Danh sách chặn.
+
+### Sửa
+- Trình chiếu toàn màn hình: học sinh không còn thoát ra màn hình chính được (chặn bàn phím, chuột như màn hình khóa;
+  bị thu nhỏ thì tự phóng lại).
+- Ô màn hình học sinh bị kéo dài xuống dưới khi các máy có tỉ lệ màn hình khác nhau.
+
 ## [3.0.0] – 2026-11-23
 
 Đổi cách kết nối giống iClassroom: **máy học sinh tự tìm và tự nối về máy giáo viên**, ghép bằng **mật khẩu phòng**.
