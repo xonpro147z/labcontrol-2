@@ -101,6 +101,7 @@ button.chip { cursor: pointer; } button.chip:hover { background: var(--pri-50); 
 .seg button { border: 0; background: none; height: 30px; width: 34px; display: grid; place-items: center; color: var(--text-2); cursor: pointer; }
 .seg button.active { background: var(--pri-50); color: var(--pri-600); }
 select.sel { height: 32px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); padding: 0 8px; }
+input[type=range] { accent-color: var(--pri); }
 .check { width: 17px; height: 17px; accent-color: var(--pri); cursor: pointer; }
 
 /* ---------- nội dung ---------- */
