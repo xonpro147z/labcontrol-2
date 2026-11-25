@@ -1,4 +1,4 @@
-//! Tự tìm máy giáo viên và tự nối về (giống iClassroom/NetSupport).
+//! Tự tìm máy giáo viên và tự nối về.
 //!
 //! Agent gửi gói "seek" (UDP 47901, quảng bá trong mạng LAN và tới các địa chỉ cố định nếu có).
 //! Máy giáo viên trả lời "here" kèm mã giáo viên và cổng. Agent nối TLS tới máy giáo viên đó:

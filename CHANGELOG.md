@@ -2,6 +2,18 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.1.0] – 2026-11-25
+
+### Giao diện mới
+- Phong cách tối giản, lớp "kính" trong suốt: thanh bên và thanh công cụ nổi, bo góc lớn, nút dạng viên thuốc,
+  menu và hộp thoại kính mờ, thông báo dạng viên ở giữa đáy màn hình, nền chuyển màu nhẹ; nền tối được làm lại.
+- Ô màn hình học sinh: thẻ bo tròn, ảnh bo góc đồng tâm, ô chọn và nút điều khiển chỉ hiện khi rê chuột.
+- Tùy chọn **Hiệu ứng kính trong suốt** (Cài đặt › Hình ảnh & tốc độ) để tắt trên máy giáo viên yếu.
+  Kính chỉ dùng cho khung giao diện, không dùng cho ô màn hình học sinh, để lớp đông máy vẫn mượt.
+
+### Khác
+- Tài liệu và chú thích mã không còn nhắc tên phần mềm thương mại khác.
+
 ## [3.0.4] – 2026-11-25
 
 ### Sửa
@@ -42,7 +54,7 @@
 
 ## [3.0.0] – 2026-11-23
 
-Đổi cách kết nối giống iClassroom: **máy học sinh tự tìm và tự nối về máy giáo viên**, ghép bằng **mật khẩu phòng**.
+Đổi cách kết nối: **máy học sinh tự tìm và tự nối về máy giáo viên**, ghép bằng **mật khẩu phòng**.
 Giao diện máy giáo viên làm lại hoàn toàn.
 
 ### Kết nối và ghép máy
@@ -74,7 +86,7 @@ Giao diện máy giáo viên làm lại hoàn toàn.
 
 ## [2.0.0] – 2026-11-22
 
-Đổi sang mô hình **kiểu NetSupport School**: máy giáo viên kết nối thẳng tới máy học sinh trong mạng LAN.
+Đổi sang mô hình **không cần máy chủ**: máy giáo viên kết nối thẳng tới máy học sinh trong mạng LAN.
 Bỏ hẳn Server và PostgreSQL.
 
 ### Thêm

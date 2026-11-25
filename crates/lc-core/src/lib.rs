@@ -1,6 +1,6 @@
 //! Phần lõi dùng chung giữa LabControl Agent (máy học sinh) và Console (máy giáo viên).
 //!
-//! Mô hình giống NetSupport School / iClassroom: máy học sinh tự tìm và nối về máy giáo viên trong mạng LAN,
+//! Máy học sinh tự tìm và nối về máy giáo viên trong mạng LAN,
 //! không cần máy chủ hay cơ sở dữ liệu.
 
 pub mod auth;

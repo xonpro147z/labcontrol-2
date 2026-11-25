@@ -131,6 +131,8 @@ export function SettingsModal({ initial, onClose }: { initial: string; onClose: 
             <div className="field"><label>Chất lượng trình chiếu: {s.show_quality}</label>
               <input type="range" min={30} max={90} step={5} value={s.show_quality} onChange={(e) => up({ show_quality: +e.target.value })} />
               <span className="hint">Mạng yếu hoặc nhiều máy: giảm khung hình/giây và chất lượng.</span></div>
+            <Switch checked={s.glass !== false} onChange={(v) => up({ glass: v })} label="Hiệu ứng kính trong suốt"
+                    hint="Tắt nếu máy giáo viên yếu hoặc giao diện bị giật." />
           </>}
           {sec === "about" && <>
             <div><b>LabControl {st.version || VERSION}</b> – phần mềm quản lý phòng máy tính.</div>

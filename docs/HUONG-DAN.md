@@ -1,6 +1,6 @@
 # Hướng dẫn sử dụng LabControl 3
 
-LabControl quản lý phòng máy theo kiểu iClassroom / NetSupport School:
+LabControl quản lý phòng máy tính trong mạng LAN:
 
 - **Máy học sinh tự tìm và tự nối về máy giáo viên** trong cùng mạng LAN.
 - Ghép máy lần đầu bằng **mật khẩu phòng**.

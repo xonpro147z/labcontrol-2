@@ -1,5 +1,5 @@
-//! LabControl Console 3 – máy giáo viên. Máy học sinh tự tìm và nối về máy này trong mạng LAN
-//! (giống iClassroom / NetSupport School), ghép lần đầu bằng mật khẩu phòng. Không cần máy chủ.
+//! LabControl Console 3 – máy giáo viên. Máy học sinh tự tìm và nối về máy này trong mạng LAN,
+//! ghép lần đầu bằng mật khẩu phòng. Không cần máy chủ.
 
 mod hub;
 

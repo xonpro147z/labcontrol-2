@@ -1,6 +1,6 @@
 //! LabControl Agent 3 – chạy trên máy học sinh.
 //!
-//! Từ bản 3, máy học sinh **tự tìm và tự nối về máy giáo viên** trong mạng LAN (như iClassroom/NetSupport),
+//! Từ bản 3, máy học sinh **tự tìm và tự nối về máy giáo viên** trong mạng LAN,
 //! ghép lần đầu bằng **mật khẩu phòng**. Máy học sinh không mở cổng nào.
 //!
 //! Gồm hai phần:

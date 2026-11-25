@@ -6,7 +6,7 @@ LabControl là phần mềm tự do theo AGPL-3.0-or-later.
 
 | Phiên bản | Nội dung | Trạng thái |
 |---|---|---|
-| 2.0 | Mô hình kiểu NetSupport: xem cả lớp, xem lớn + điều khiển, trình chiếu, khóa, tin nhắn, mở web, gửi file, nguồn | Xong |
+| 2.0 | Mô hình không cần máy chủ: xem cả lớp, xem lớn + điều khiển, trình chiếu, khóa, tin nhắn, mở web, gửi file, nguồn | Xong |
 | 3.0 | Máy học sinh tự nối về, ghép bằng mật khẩu phòng; Helper dịch vụ hệ thống; sơ đồ phòng; chặn web/ứng dụng; chế độ thi; bài tập; trắc nghiệm; giao diện mới | **Xong**: đã thử trên Linux, chưa thử Windows thật |
 | 3.1 | Helper mở lại Agent trong phiên học sinh khi bị tắt (học sinh khó tắt Agent hơn) | Cần làm |
 | 3.1 | Trình chiếu qua multicast (một luồng cho cả phòng, máy giáo viên yếu vẫn chiếu được cho 40 máy) | Cần làm |

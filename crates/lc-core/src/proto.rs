@@ -1,6 +1,6 @@
 //! Giao thức giữa Console (máy giáo viên) và Agent (máy học sinh), phiên bản 3.
 //!
-//! Từ bản 3, **máy học sinh tự tìm và tự nối về máy giáo viên** (giống iClassroom/NetSupport):
+//! Từ bản 3, **máy học sinh tự tìm và tự nối về máy giáo viên**;
 //! chỉ máy giáo viên phải mở tường lửa. Máy giáo viên là máy chủ TLS; Agent là máy khách.
 //!
 //! Mỗi gói: 4 byte độ dài (big-endian, tính từ byte loại) + 1 byte loại + dữ liệu.

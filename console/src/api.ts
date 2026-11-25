@@ -18,7 +18,7 @@ export interface Pending { id: string; name: string; user: string; ip: string; r
 export interface Settings {
   teacher_name: string; room: string; room_password: string; accept_new: boolean;
   thumb_seconds: number; thumb_width: number; show_fps: number; show_quality: number;
-  web_list: string[]; app_list: string[]; run_list: string[]; dark: boolean; seat_cols: number;
+  web_list: string[]; app_list: string[]; run_list: string[]; dark: boolean; glass: boolean; seat_cols: number;
 }
 export interface Policy { block_web: string[]; block_tools: boolean; block_apps: string[]; exam: boolean }
 export const NO_POLICY: Policy = { block_web: [], block_tools: false, block_apps: [], exam: false };

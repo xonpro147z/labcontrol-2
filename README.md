@@ -1,11 +1,11 @@
 # LabControl
 
-**Phần mềm tự do, mã nguồn mở để quản lý lớp học máy tính**, kiểu NetSupport School, chạy trên Windows và Linux Mint/Ubuntu.
+**Phần mềm tự do, mã nguồn mở để quản lý lớp học máy tính**, chạy trên Windows và Linux Mint/Ubuntu.
 
 [![Giấy phép: AGPL-3.0-or-later](https://img.shields.io/badge/gi%E1%BA%A5y%20ph%C3%A9p-AGPL--3.0--or--later-blue)](LICENSE)
 [![Build](https://github.com/xonpro147z/labcontrol-2/actions/workflows/build.yml/badge.svg)](https://github.com/xonpro147z/labcontrol-2/actions)
 
-Giống iClassroom / NetSupport School:
+Cách hoạt động:
 
 - **Máy học sinh tự tìm và tự nối về máy giáo viên** trong mạng LAN.
 - Ghép lần đầu bằng **mật khẩu phòng**.

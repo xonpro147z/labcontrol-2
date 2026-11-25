@@ -34,7 +34,7 @@ export function App() {
   };
 
   return (
-    <div className={`app ${dark ? "dark" : ""}`}>
+    <div className={`app ${dark ? "dark" : ""} ${settings?.glass === false ? "no-glass" : ""}`}>
       <nav className="rail">
         <div className="logo" title="LabControl"><Monitor size={22} /></div>
         <button className={page === "class" ? "active" : ""} onClick={() => setPage("class")}>
