@@ -114,6 +114,8 @@ async fn main() -> anyhow::Result<()> {
             "clear" => pol(Policy::default(), &key),
             "close" => Ctrl::CloseApp { name: arg.into() },
             "run" => Ctrl::RunApp { cmd: arg.into() },
+            "showfs" => Ctrl::ShowStart { fullscreen: true },
+            "showstop" => Ctrl::ShowStop,
             "sendf" => {
                 // gửi file cục bộ dưới tên "ThuMuc/<tên file>"
                 let data = std::fs::read(arg)?;

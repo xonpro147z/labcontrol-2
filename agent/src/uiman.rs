@@ -107,8 +107,10 @@ impl UiMan {
             None => kill(&mut s.lock),
             _ => {}
         }
-        // trình chiếu
-        match s.want_show.as_ref().copied() {
+        // trình chiếu. Đang khóa máy thì tạm ẩn cửa sổ trình chiếu: hai cửa sổ toàn màn hình cùng giành
+        // tiêu điểm sẽ nhấp nháy liên tục. Mở khóa thì trình chiếu hiện lại (khung đầy đủ đến trong ≤ 2 giây).
+        let show_now = if s.want_lock.is_some() { None } else { s.want_show };
+        match show_now {
             Some(fs) if !alive(&mut s.view) => {
                 kill(&mut s.view);
                 s.view_tx = None;
@@ -258,6 +260,11 @@ impl UiMan {
 
     pub fn show(&self, fullscreen: bool) {
         let mut s = self.0.lock().unwrap();
+        if fullscreen && s.want_show != Some(true) {
+            // bắt đầu trình chiếu toàn màn hình (đã khóa bàn phím, chuột): lệnh mới nhất thắng, bỏ màn hình khóa.
+            // Máy nối lại giữa chừng (giáo viên gửi lại lệnh trình chiếu) thì giữ nguyên trạng thái khóa.
+            s.want_lock = None;
+        }
         if s.want_show != Some(fullscreen) {
             s.want_show = Some(fullscreen);
             s.view_tx = None;

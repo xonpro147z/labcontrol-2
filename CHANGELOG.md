@@ -2,6 +2,13 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.1.2] – 2026-11-25
+
+### Sửa
+- Màn hình học sinh **nhấp nháy liên tục** khi vừa khóa máy vừa trình chiếu toàn màn hình: hai cửa sổ toàn màn hình
+  giành nhau tiêu điểm. Nay khóa máy được ưu tiên – cửa sổ trình chiếu tạm ẩn, mở khóa thì trình chiếu hiện lại;
+  bắt đầu trình chiếu toàn màn hình (vốn đã khóa bàn phím, chuột) thì tự bỏ màn hình khóa.
+
 ## [3.1.1] – 2026-11-25
 
 ### Gửi file hoàn chỉnh
