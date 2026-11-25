@@ -18,3 +18,8 @@ pub const DISCOVER_PORT: u16 = 47901;
 /// Cổng nội bộ (127.0.0.1) của Helper quyền cao trên máy học sinh.
 pub const HELPER_PORT: u16 = 47903;
 pub const PROTO_VERSION: u32 = 3;
+
+/// Chuẩn hóa tên phòng để so sánh: bỏ khoảng trắng, không phân biệt hoa thường ("P.Tin 2" = "p.tin2").
+pub fn norm_room(s: &str) -> String {
+    s.chars().filter(|c| !c.is_whitespace()).collect::<String>().to_lowercase()
+}

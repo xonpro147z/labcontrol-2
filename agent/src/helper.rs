@@ -25,7 +25,8 @@ const HOSTS_END: &str = "# --- LabControl END ---";
 
 #[derive(Default)]
 struct Guard {
-    fails: Vec<Instant>,
+    /// lần ghép sai theo mã giáo viên (máy giáo viên phòng bên nhập sai không khóa máy giáo viên phòng mình)
+    fails: HashMap<String, Vec<Instant>>,
     last: Option<Instant>,
 }
 
@@ -104,11 +105,15 @@ fn handle(st: &Arc<Mutex<State>>, v: Value) -> Result<Value> {
             if c.password.is_empty() {
                 bail!("máy này chưa có mật khẩu phòng");
             }
+            let teacher = v["teacher"].as_str().unwrap_or("").to_string();
             let mut s = st.lock().unwrap();
-            // giới hạn tốc độ thử mật khẩu
+            // giới hạn tốc độ thử mật khẩu: 10 lần sai / 5 phút cho mỗi máy giáo viên, 1 lần / giây cho cả máy
             let now = Instant::now();
-            s.guard.fails.retain(|t| now.duration_since(*t) < Duration::from_secs(300));
-            if s.guard.fails.len() >= 10 {
+            for f in s.guard.fails.values_mut() {
+                f.retain(|t| now.duration_since(*t) < Duration::from_secs(300));
+            }
+            s.guard.fails.retain(|_, f| !f.is_empty());
+            if s.guard.fails.get(&teacher).map(|f| f.len()).unwrap_or(0) >= 10 {
                 bail!("thử sai quá nhiều lần, chờ 5 phút");
             }
             if let Some(l) = s.guard.last {
@@ -131,7 +136,7 @@ fn handle(st: &Arc<Mutex<State>>, v: Value) -> Result<Value> {
             let p = st.lock().unwrap().pairings.remove(id).map(|(p, _)| p).ok_or_else(|| anyhow!("phiên ghép hết hạn"))?;
             let key = p.finish(peer)?;
             if !pair::check(&key, "teacher", fp, teacher, tconf) {
-                st.lock().unwrap().guard.fails.push(Instant::now());
+                st.lock().unwrap().guard.fails.entry(teacher.to_string()).or_default().push(Instant::now());
                 bail!("sai mật khẩu phòng");
             }
             let mut c = config::load()?;

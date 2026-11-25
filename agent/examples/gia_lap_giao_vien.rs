@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
         while let Ok((n, from)) = udp.recv_from(&mut b).await {
             if let Ok(d) = serde_json::from_slice::<Discover>(&b[..n]) {
                 if d.kind == "seek" {
-                    let r = Discover { lc: PROTO_VERSION, kind: "here".into(), room: String::new(), port, teacher: code2.clone(), name: "Thử".into() };
+                    let r = Discover { lc: PROTO_VERSION, kind: "here".into(), room: std::env::var("LABCONTROL_ROOM").unwrap_or_default(), port, teacher: code2.clone(), name: "Thử".into() };
                     let _ = udp.send_to(&serde_json::to_vec(&r).unwrap(), from).await;
                 }
             }

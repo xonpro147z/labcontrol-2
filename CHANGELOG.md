@@ -2,6 +2,17 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.1.3] – 2026-11-25
+
+### Sửa – nhiều phòng máy chung một mạng
+- Máy học sinh **đã đặt tên phòng** chỉ ghép với máy giáo viên báo **đúng tên phòng đó**; không còn thử mật khẩu với
+  máy giáo viên phòng khác hoặc máy giáo viên chưa đặt tên phòng (trước đây máy phòng 2 hiện ở mục "Chưa ghép" của phòng 1).
+- Máy học sinh không đặt tên phòng mà đã ghép với một máy giáo viên thì không tự ghép thêm với máy giáo viên lạ.
+- So tên phòng không phân biệt hoa thường và khoảng trắng ("P.Tin 2" = "p.tin2").
+- Ghép sai với một máy giáo viên thì chờ lâu dần (30 giây → 30 phút) và chỉ khóa thử với máy giáo viên đó,
+  không làm máy học sinh bị khóa ghép với máy giáo viên phòng mình.
+- Máy giáo viên không đưa máy của phòng khác vào danh sách "Chưa ghép".
+
 ## [3.1.2] – 2026-11-25
 
 ### Sửa

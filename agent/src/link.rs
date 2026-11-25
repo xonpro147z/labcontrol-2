@@ -37,7 +37,8 @@ pub async fn run(sh: Arc<Shared>) -> Result<()> {
     sock.set_broadcast(true)?;
     let active: Arc<Mutex<HashSet<SocketAddr>>> = Default::default();
     // máy giáo viên vừa từ chối (sai mật khẩu...) thì chờ một lúc mới thử lại
-    let backoff: Arc<Mutex<HashMap<SocketAddr, Instant>>> = Default::default();
+    // mã giáo viên -> (chờ tới lúc, số lần thất bại liên tiếp)
+    let backoff: Arc<Mutex<HashMap<String, (Instant, u32)>>> = Default::default();
 
     // gửi "seek" định kỳ
     {
@@ -77,31 +78,51 @@ pub async fn run(sh: Arc<Shared>) -> Result<()> {
             continue;
         }
         let cfg = sh_cfg().lock().unwrap().clone();
-        if !cfg.room.is_empty() && !d.room.is_empty() && !cfg.room.eq_ignore_ascii_case(&d.room) {
+        let (room_me, room_t) = (lc_core::norm_room(&cfg.room), lc_core::norm_room(&d.room));
+        // hai bên đều đặt tên phòng mà khác nhau: không bao giờ nối
+        if !room_me.is_empty() && !room_t.is_empty() && room_me != room_t {
             continue;
         }
         let known = cfg.teachers.iter().any(|t| t == &d.teacher);
-        if !known && !cfg.has_password {
-            continue; // chưa ghép và không có mật khẩu phòng: không nối
+        if !known {
+            if !cfg.has_password {
+                continue; // chưa ghép và không có mật khẩu phòng: không nối
+            }
+            // Máy đã đặt tên phòng: chỉ ghép với máy giáo viên báo đúng tên phòng đó
+            // (không thử mật khẩu với máy giáo viên phòng khác hoặc chưa đặt tên phòng).
+            if !room_me.is_empty() && room_t != room_me {
+                continue;
+            }
+            // Máy không đặt tên phòng và đã có giáo viên: không tự ghép thêm với máy giáo viên lạ.
+            if room_me.is_empty() && !cfg.teachers.is_empty() {
+                continue;
+            }
+            // vừa ghép sai với máy giáo viên này: chờ lâu dần (30 giây → 30 phút)
+            if let Some((until, _)) = backoff.lock().unwrap().get(&d.teacher) {
+                if Instant::now() < *until {
+                    continue;
+                }
+            }
         }
         let addr = SocketAddr::new(from.ip(), if d.port == 0 { TEACHER_PORT } else { d.port });
         if active.lock().unwrap().contains(&addr) {
             continue;
-        }
-        if let Some(t) = backoff.lock().unwrap().get(&addr) {
-            if t.elapsed() < Duration::from_secs(30) {
-                continue;
-            }
         }
         active.lock().unwrap().insert(addr);
         let (sh, active, backoff) = (sh.clone(), active.clone(), backoff.clone());
         tokio::spawn(async move {
             tracing::info!("Nối tới máy giáo viên {} ({addr})", d.name);
             match connect(addr, &sh).await {
-                Ok(_) => tracing::info!("Máy giáo viên {addr} đã ngắt"),
+                Ok(_) => {
+                    tracing::info!("Máy giáo viên {addr} đã ngắt");
+                    backoff.lock().unwrap().remove(&d.teacher);
+                }
                 Err(e) => {
-                    tracing::info!("Kết nối {addr}: {e:#}");
-                    backoff.lock().unwrap().insert(addr, Instant::now());
+                    let mut b = backoff.lock().unwrap();
+                    let fails = b.get(&d.teacher).map(|x| x.1).unwrap_or(0) + 1;
+                    let wait = Duration::from_secs((30u64 << (fails - 1).min(6)).min(1800));
+                    tracing::info!("Kết nối {addr}: {e:#} (thử lại sau {}s)", wait.as_secs());
+                    b.insert(d.teacher.clone(), (Instant::now() + wait, fails));
                 }
             }
             active.lock().unwrap().remove(&addr);
@@ -153,7 +174,7 @@ async fn connect(addr: SocketAddr, sh: &Arc<Shared>) -> Result<()> {
         "key" => {}
         "pair" => {
             // ----- 4. ghép bằng mật khẩu phòng (phần mật mã do Helper làm, Agent không thấy mật khẩu)
-            let st = helper::machine(json!({"op": "pair_start"})).await?;
+            let st = helper::machine(json!({"op": "pair_start", "teacher": teacher})).await?;
             let pid = st["id"].as_str().unwrap_or("").to_string();
             proto::write_ctrl(&mut wr, &Ctrl::PairStart { msg: st["msg"].as_str().unwrap_or("").into() }).await?;
             let (peer, tconf) = match next(&mut rd).await? {

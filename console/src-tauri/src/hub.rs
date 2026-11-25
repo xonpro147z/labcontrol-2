@@ -524,8 +524,9 @@ impl Hub {
                 continue;
             }
             let s = self.settings();
-            if !s.room.trim().is_empty() && !d.room.trim().is_empty() && !s.room.trim().eq_ignore_ascii_case(d.room.trim()) {
-                continue;
+            let (mine, theirs) = (lc_core::norm_room(&s.room), lc_core::norm_room(&d.room));
+            if !mine.is_empty() && !theirs.is_empty() && mine != theirs {
+                continue; // máy của phòng khác
             }
             let r = Discover { lc: PROTO_VERSION, kind: "here".into(), room: s.room.trim().into(), port: TEACHER_PORT,
                                teacher: self.teacher_code(), name: s.teacher_name.clone() };
@@ -567,7 +568,12 @@ impl Hub {
         let (info, outcome) = match handshake::teacher(&mut rd, &mut wr, &side).await {
             Ok(x) => x,
             Err(e) => {
-                if let Some(i) = e.info {
+                // máy của phòng khác (bản Agent cũ vẫn thử nối) thì không đưa vào danh sách "Chưa ghép"
+                let other_room = e.info.as_ref().map(|i| {
+                    let (a, b) = (lc_core::norm_room(&i.room), lc_core::norm_room(&s.room));
+                    !a.is_empty() && a != b
+                }).unwrap_or(false);
+                if let Some(i) = e.info.filter(|_| !other_room) {
                     let reason = if e.reason.contains("chưa ghép") && !s.accept_new {
                         "máy chưa ghép (đang tắt nhận máy mới)".to_string()
                     } else {
