@@ -1,6 +1,6 @@
 # LabControl
 
-**Phần mềm tự do, mã nguồn mở để quản lý lớp học máy tính**, chạy trên Windows và Linux Mint/Ubuntu.
+**Phần mềm tự do, mã nguồn mở để quản lý lớp học máy tính**, chạy trên Windows và Linux Mint/Ubuntu (máy giáo viên chạy được cả trên macOS).
 
 [![Giấy phép: AGPL-3.0-or-later](https://img.shields.io/badge/gi%E1%BA%A5y%20ph%C3%A9p-AGPL--3.0--or--later-blue)](LICENSE)
 [![Build](https://github.com/xonpro147z/labcontrol-2/actions/workflows/build.yml/badge.svg)](https://github.com/xonpro147z/labcontrol-2/actions)
@@ -73,7 +73,7 @@ React + TypeScript + Tauri 2                       Agent (Rust, phiên của h�
 | `agent/` | Agent + Helper máy học sinh: tìm và nối về máy giáo viên, điều khiển (enigo), chặn ứng dụng (sysinfo), cửa sổ khóa / trình chiếu / tin nhắn / trắc nghiệm (egui) |
 | `console/` | LabControl máy giáo viên: giao diện React + phần Rust (trạm TLS, ghép máy, trình chiếu, bài tập, trắc nghiệm) |
 | `deploy/` | Script cài / gỡ máy học sinh, mở tường lửa máy giáo viên |
-| `.github/workflows/` | CI build Windows + Linux; gắn tag `v*` thì tạo trang Releases |
+| `.github/workflows/` | CI build Windows + Linux (+ macOS cho máy giáo viên); gắn tag `v*` thì tạo trang Releases |
 
 ## Phát triển
 

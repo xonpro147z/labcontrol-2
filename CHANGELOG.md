@@ -9,6 +9,7 @@
 - Ô máy hiện biểu tượng loa gạch khi máy đang bị tắt tiếng.
 - Windows dùng Core Audio; Linux dùng `pactl` (PulseAudio/PipeWire) hoặc `amixer`.
 - Cần cập nhật máy học sinh (nút **Cập nhật**) để dùng tính năng này.
+- Phần mềm giáo viên có bản **macOS** (`.dmg`, chạy cả chip Apple và Intel), điều khiển được máy học sinh Windows và Linux.
 
 ## [3.2.1] – 2026-11-25
 

@@ -19,6 +19,12 @@ Tất cả có ở trang **Releases** của dự án.
 1. Chạy bộ cài LabControl.
    - Windows chưa ký số nên sẽ báo *"Windows protected your PC"*: bấm **More info → Run anyway**.
    - Bộ cài tự mở tường lửa cho cổng TCP 47900 và UDP 47901.
+   - **macOS** (máy giáo viên): tải `LabControl_…_universal.dmg`, mở ra rồi kéo LabControl vào **Applications**.
+     Lần đầu mở, macOS báo không xác định nhà phát triển: chuột phải vào LabControl → **Open** → **Open**.
+     Trên macOS 15 trở lên: vào **System Settings → Privacy & Security**, kéo xuống và bấm **Open Anyway**.
+     Nếu báo *"bị hỏng"* (damaged), mở Terminal và chạy `xattr -cr /Applications/LabControl.app`.
+     Khi macOS hỏi cho phép kết nối mạng đến, chọn **Allow**.
+     Máy giáo viên Mac điều khiển được máy học sinh Windows và Linux; máy học sinh chạy macOS thì chưa hỗ trợ.
 2. Mở LabControl.
 3. Chọn **Cài đặt → Phòng & ghép máy** và xem **mật khẩu phòng** (lần đầu là 6 chữ số ngẫu nhiên, đổi được).
    - Nếu mạng có nhiều phòng máy, đặt thêm **tên phòng** (ví dụ `P.Tin 1`).

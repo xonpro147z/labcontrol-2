@@ -44,12 +44,15 @@ jobs:
         include:
           - { os: windows-latest, name: labcontrol-console-windows }
           - { os: ubuntu-22.04, name: labcontrol-console-linux }
+          # bản Mac chạy được cả chip Apple (M1…) lẫn Intel
+          - { os: macos-latest, name: labcontrol-console-macos, args: "--target universal-apple-darwin --bundles app,dmg" }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm, cache-dependency-path: console/package-lock.json }
       - uses: dtolnay/rust-toolchain@stable
+        with: { targets: "${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}" }
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: console/src-tauri }
       - name: Thư viện hệ thống (Linux)
@@ -61,12 +64,12 @@ jobs:
         with: { name: labcontrol-agent-linux-x64, path: console/src-tauri/resources/agent/linux }
       - name: Build Console
         working-directory: console
-        run: npm ci && npx tauri build
+        run: npm ci && npx tauri build ${{ matrix.args }}
       - name: Gom file
         shell: bash
         run: |
           mkdir dist
-          find console/src-tauri/target/release/bundle \( -name '*-setup.exe' -o -name '*.deb' -o -name '*.AppImage' \) -exec cp {} dist/ \;
+          find console/src-tauri/target -path '*/release/bundle/*' \( -name '*-setup.exe' -o -name '*.deb' -o -name '*.AppImage' -o -name '*.dmg' \) -exec cp {} dist/ \;
           if [ "$RUNNER_OS" = "Windows" ]; then cp deploy/console/mo-tuong-lua-may-giao-vien.cmd dist/; fi
       - uses: actions/upload-artifact@v4
         with: { name: "${{ matrix.name }}", path: dist/* }
@@ -82,7 +85,7 @@ jobs:
       - name: Gom file phát hành
         run: |
           mkdir out
-          cp artifacts/labcontrol-console-windows/* artifacts/labcontrol-console-linux/* out/
+          cp artifacts/labcontrol-console-windows/* artifacts/labcontrol-console-linux/* artifacts/labcontrol-console-macos/* out/
           (cd artifacts/labcontrol-agent-windows-x64 && zip -qr ../../out/labcontrol-agent-windows-x64.zip .)
           (cd artifacts/labcontrol-agent-linux-x64 && chmod +x labcontrol-agent install-agent-linux.sh && tar czf ../../out/labcontrol-agent-linux-x64.tar.gz .)
           (cd out && sha256sum * > SHA256SUMS.txt)
