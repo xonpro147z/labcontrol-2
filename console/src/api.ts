@@ -44,7 +44,7 @@ export interface Transfer extends SendBatch { label: string; done: number; faile
 export interface UpdateInfo { version: string; url: string; notes: string; newer: boolean }
 
 interface AppState {
-  teacher_code: string; settings: Settings; students: Student[]; pending: Pending[]; showing: boolean; policy: Policy;
+  teacher_code: string; settings: Settings; students: Student[]; pending: Pending[]; showing: boolean; policy: Policy; overrides: Record<string, Policy>;
   tasks: Task[]; quiz: QuizRun | null; listen_error: string; out_dir: string; addresses: string[]; version: string;
   update: UpdateInfo | null; bundled: string[];
 }
@@ -60,7 +60,8 @@ export const api = {
   setLabel: (id: string, label: string) => invoke("set_label", { id, label }),
   send: (ids: string[], msg: Ctrl) => invoke<number>("send_ctrl", { ids, msg }),
   input: (id: string, ev: InputEv) => invoke("input", { id, ev }),
-  setPolicy: (policy: Policy) => invoke<number>("set_policy", { policy }),
+  setPolicy: (policy: Policy, ids: string[] | null = null) => invoke<number>("set_policy", { policy, ids }),
+  clearOverride: (ids: string[]) => invoke<number>("clear_override", { ids }),
   sendFiles: async (ids: string[], paths: string[]) => {
     const b = await invoke<SendBatch>("send_files", { ids, paths });
     const label = paths.length === 1 ? paths[0].split(/[\\/]/).pop()! : tr("{0} mục", paths.length);
@@ -89,6 +90,7 @@ interface Snap {
   pending: Pending[];
   showing: boolean;
   policy: Policy;
+  overrides: Record<string, Policy>;
   tasks: Task[];
   quiz: QuizRun | null;
   teacherCode: string;
@@ -107,7 +109,7 @@ interface Snap {
 }
 
 let snap: Snap = {
-  students: new Map(), thumbs: new Map(), pending: [], showing: false, policy: NO_POLICY, tasks: [], quiz: null,
+  students: new Map(), thumbs: new Map(), pending: [], showing: false, policy: NO_POLICY, overrides: {}, tasks: [], quiz: null,
   teacherCode: "", settings: null, listenError: "", outDir: "", addresses: [], version: "", update: null, bundled: [], log: [], transfers: [], collects: {}, v: 0,
 };
 const subs = new Set<() => void>();
@@ -181,7 +183,7 @@ export async function startStore() {
   await listen<string>("info", (e) => { log(e.payload); infos.forEach((f) => f(e.payload)); });
   await listen<UpdateInfo>("update", (e) => set({ update: e.payload }));
   await listen<Pending[]>("pending", (e) => set({ pending: e.payload }));
-  await listen<Policy>("policy", (e) => set({ policy: e.payload }));
+  await listen<{ policy: Policy; overrides: Record<string, Policy> }>("policy", (e) => set({ policy: e.payload.policy, overrides: e.payload.overrides }));
   await listen<Task[]>("tasks", (e) => set({ tasks: e.payload }));
   await listen<QuizRun>("quiz", (e) => set({ quiz: e.payload }));
   await listen<{ task: string; student: string; name: string; done: boolean; files: number; error?: string }>("collect", (e) => {
@@ -196,7 +198,7 @@ export async function startStore() {
 export async function reload() {
   const s = await api.getState();
   set({
-    students: new Map(s.students.map((x) => [x.id, x])), pending: s.pending, showing: s.showing, policy: s.policy,
+    students: new Map(s.students.map((x) => [x.id, x])), pending: s.pending, showing: s.showing, policy: s.policy, overrides: s.overrides ?? {},
     tasks: s.tasks, quiz: s.quiz, teacherCode: s.teacher_code, settings: s.settings, listenError: s.listen_error,
     outDir: s.out_dir, addresses: s.addresses, version: s.version, update: s.update, bundled: s.bundled,
   });

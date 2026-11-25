@@ -1,6 +1,6 @@
 [package]
 name = "labcontrol-console"
-version = "3.2.0"
+version = "3.2.1"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/xonpro147z/labcontrol-2"
 description = "LabControl Console – máy giáo viên"

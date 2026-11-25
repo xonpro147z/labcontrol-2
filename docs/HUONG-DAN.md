@@ -113,7 +113,11 @@ Bố cục: thanh biểu tượng bên trái, **thanh công cụ** phía trên, 
 
 Chặn web, chặn ứng dụng và chế độ thi:
 
-- Áp dụng cho **cả lớp**, kể cả máy vào lớp sau.
+- Đang chọn máy thì chỉ áp dụng cho các máy đó (giới hạn riêng); không chọn máy nào thì áp dụng cho cả lớp và xóa mọi giới hạn riêng.
+- Ví dụ cả lớp đang bị chặn web mà một máy cần mở web: **chuột phải vào máy đó → Bỏ giới hạn cho máy này**.
+  Muốn máy đó bị chặn lại như cả lớp: chuột phải → **Dùng giới hạn chung của lớp**.
+
+- Giới hạn chung của lớp áp dụng cả cho máy vào lớp sau.
 - Máy giáo viên gửi lại mỗi phút. Nếu LabControl trên máy giáo viên bị tắt ngang hoặc mất mạng, máy học sinh **tự bỏ giới hạn sau 3 phút**, để không bị kẹt.
 
 Biểu tượng trên ô máy:

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AppWindow, Ban, BookOpen, Cast, ChevronDown, ClipboardCheck, Eye, FileUp, Globe, KeyRound, LayoutGrid, List,
   Lock, MessageSquare, MonitorOff, MousePointer2, Pencil, Power, Search, ShieldAlert, ShieldCheck, ShieldOff, Trash2,
-  Unlock, UserX, Wand2, WifiOff, X, Armchair, Rocket, Download, RefreshCw, FolderUp,
+  Unlock, UserX, Wand2, WifiOff, X, Armchair, Rocket, Download, RefreshCw, FolderUp, UserCog,
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -26,7 +26,7 @@ const SIZES = { s: "170px", m: "230px", l: "320px" } as const;
 
 export function Classroom({ openSettings, goTasks }: { openSettings: (section: string) => void; goTasks: () => void }) {
   const st = useStore();
-  const { students, thumbs, settings, policy, showing, pending } = st;
+  const { students, thumbs, settings, policy, overrides, showing, pending } = st;
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>("all");
   const [q, setQ] = useState("");
@@ -62,7 +62,15 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
   const targets = (chosen.length ? chosen : online).map((s) => s.id);
   const targetNote = chosen.length ? tr("Áp dụng cho {0} máy đã chọn", chosen.length) : tr("Áp dụng cho cả lớp ({0} máy)", online.length);
   const anyLocked = online.some((s) => s.status?.locked);
-  const policyOn = JSON.stringify(policy) !== JSON.stringify(NO_POLICY);
+  const isFree = (p: Policy) => JSON.stringify({ ...NO_POLICY, ...p }) === JSON.stringify(NO_POLICY);
+  const nOverride = Object.keys(overrides).length;
+  const policyOn = !isFree(policy) || Object.values(overrides).some((p) => !isFree(p));
+  // Giới hạn áp dụng cho máy đang chọn (riêng) hay cả lớp (chung)
+  const scoped = chosen.length > 0;
+  const effOf = (id: string) => overrides[id] ?? policy;
+  const curPol = scoped ? effOf(chosen[0].id) : policy;
+  const scopeIds = scoped ? chosen.map((s) => s.id) : null;
+  const scopeLabel = scoped ? tr("{0} máy đã chọn", chosen.length) : tr("cả lớp");
 
   const run = async (label: string, f: () => Promise<unknown>) => {
     try {
@@ -74,7 +82,7 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
     if (!targets.length) { toast(tr("Chưa có máy học sinh nào trực tuyến"), "error"); return false; }
     return true;
   };
-  const setPol = (p: Policy, label: string) => run(label, () => api.setPolicy(p));
+  const setPol = (p: Policy, label: string) => run(label, () => api.setPolicy(p, scopeIds));
   const toggle = (id: string) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const allSelected = list.length > 0 && list.every((s) => sel.has(s.id));
   const openMenu = (k: MenuKind) => (e: React.MouseEvent<HTMLElement>) => setMenu({ k, a: e.currentTarget });
@@ -133,8 +141,9 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
         {!settings?.accept_new && <span className="chip warn">{tr("Đang tắt nhận máy mới")}</span>}
         {showing && <button className="chip ok" onClick={() => api.stopShow()}><Cast size={13} />{tr("Đang trình chiếu · Dừng")}</button>}
         {policy.exam && <span className="chip warn"><ShieldAlert size={13} />{tr("Chế độ thi")}</span>}
-        {policy.block_web.length > 0 && <span className="chip warn"><Globe size={13} />{tr("Chặn")}{" "}{policy.block_web.length} trang web</span>}
+        {policy.block_web.length > 0 && <span className="chip warn"><Globe size={13} />{tr("Chặn {0} trang web", policy.block_web.length)}</span>}
         {(policy.block_tools || policy.block_apps.length > 0) && !policy.exam && <span className="chip warn"><AppWindow size={13} />{tr("Chặn ứng dụng")}</span>}
+        {nOverride > 0 && <span className="chip" title={tr("Chuột phải vào máy › Dùng giới hạn chung của lớp")}><UserCog size={13} />{tr("{0} máy có giới hạn riêng", nOverride)}</span>}
         {outdated.length > 0 && <button className="chip warn" title={tr("Máy giáo viên đang dùng bản {0}", st.version)} onClick={() => askUpdate(outdated)}>
           <RefreshCw size={13} />{outdated.length}{" "}{tr("máy dùng bản cũ · Cập nhật")}</button>}
         <div className="right" />
@@ -151,19 +160,19 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
         {tool(<BookOpen size={18} />, tr("Bài tập"), () => needOnline() && setDlg({ k: "assign" }))}
         {tool(<ClipboardCheck size={18} />, tr("Trắc nghiệm"), goTasks)}
         <div className="sep" />
-        {tool(<Ban size={18} />, tr("Chặn web"), openMenu("web"), { on: policy.block_web.length > 0, tone: "warn", caret: true })}
-        {tool(<AppWindow size={18} />, tr("Chặn ứng dụng"), openMenu("apps"), { on: policy.block_tools || policy.block_apps.length > 0, tone: "warn", caret: true })}
+        {tool(<Ban size={18} />, tr("Chặn web"), openMenu("web"), { on: curPol.block_web.length > 0, tone: "warn", caret: true })}
+        {tool(<AppWindow size={18} />, tr("Chặn ứng dụng"), openMenu("apps"), { on: curPol.block_tools || curPol.block_apps.length > 0, tone: "warn", caret: true })}
         {tool(<X size={18} />, tr("Đóng ứng dụng"), () => needOnline() && setDlg({ k: "close" }))}
         {tool(<ShieldAlert size={18} />, tr("Chế độ thi"), () => setDlg({
-          k: "confirm", title: policy.exam ? tr("Kết thúc chế độ thi?") : tr("Bật chế độ thi cho cả lớp?"),
-          text: policy.exam ? tr("Máy học sinh được dùng lại trình duyệt và các ứng dụng.") :
+          k: "confirm", title: curPol.exam ? tr("Kết thúc chế độ thi?") : scoped ? tr("Bật chế độ thi cho {0} máy đã chọn?", chosen.length) : tr("Bật chế độ thi cho cả lớp?"),
+          text: curPol.exam ? tr("Máy học sinh được dùng lại trình duyệt và các ứng dụng.") :
             <>{tr("Máy học sinh sẽ hiện dải")}{" "}<b>{tr("“Đang trong giờ kiểm tra”")}</b>{tr("; trình duyệt, ứng dụng nhắn tin, điều khiển từ xa và các công cụ hệ thống (cmd, PowerShell, Task Manager...) bị đóng ngay khi mở. Các trang web đang chặn vẫn giữ nguyên.")}</>,
-          ok: policy.exam ? tr("Kết thúc") : tr("Bật chế độ thi"),
-          run: () => setPol({ ...policy, exam: !policy.exam }, policy.exam ? tr("Đã kết thúc chế độ thi") : tr("Đã bật chế độ thi")),
-        }), { on: policy.exam, tone: "warn" })}
+          ok: curPol.exam ? tr("Kết thúc") : tr("Bật chế độ thi"),
+          run: () => setPol({ ...curPol, exam: !curPol.exam }, curPol.exam ? tr("Đã kết thúc chế độ thi") : tr("Đã bật chế độ thi")),
+        }), { on: curPol.exam, tone: "warn" })}
         <div className="sep" />
         {tool(<Power size={18} />, tr("Nguồn"), openMenu("power"), { caret: true })}
-        {policyOn && tool(<ShieldOff size={18} />, tr("Bỏ giới hạn"), () => setPol(NO_POLICY, tr("Đã bỏ mọi giới hạn")))}
+        {policyOn && tool(<ShieldOff size={18} />, tr("Bỏ giới hạn"), () => setPol(NO_POLICY, scoped ? tr("Đã bỏ giới hạn cho {0} máy", chosen.length) : tr("Đã bỏ mọi giới hạn")))}
         <span className="target-note">{targetNote}</span>
       </div>
 
@@ -252,10 +261,10 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
         <button onClick={() => { setMenu(null); if (needOnline()) run(tr("Đang trình chiếu trong cửa sổ"), () => api.startShow(targets, false)); }}><AppWindow size={16} />{tr("Trong cửa sổ")}</button>
         {showing && <><hr /><button className="danger" onClick={() => { setMenu(null); api.stopShow(); }}><MonitorOff size={16} />{tr("Dừng trình chiếu")}</button></>}
       </Menu>}
-      {menu?.k === "web" && <WebMenu anchor={menu.a} onClose={() => setMenu(null)} policy={policy} list={settings?.web_list ?? []}
+      {menu?.k === "web" && <WebMenu anchor={menu.a} onClose={() => setMenu(null)} policy={curPol} scope={scopeLabel} list={settings?.web_list ?? []}
                                      apply={(p) => setPol(p, p.block_web.length ? tr("Đang chặn {0} trang web", p.block_web.length) : tr("Đã bỏ chặn web"))}
                                      edit={() => { setMenu(null); openSettings("lists"); }} />}
-      {menu?.k === "apps" && <AppsMenu anchor={menu.a} onClose={() => setMenu(null)} policy={policy} list={settings?.app_list ?? []}
+      {menu?.k === "apps" && <AppsMenu anchor={menu.a} onClose={() => setMenu(null)} policy={curPol} scope={scopeLabel} list={settings?.app_list ?? []}
                                        apply={(p) => setPol(p, tr("Đã cập nhật chặn ứng dụng"))} edit={() => { setMenu(null); openSettings("lists"); }} />}
       {menu?.k === "power" && <Menu anchor={menu.a} onClose={() => setMenu(null)}>
         {([["shutdown", tr("Tắt máy")], ["restart", tr("Khởi động lại")], ["logoff", tr("Đăng xuất")]] as const).map(([a, l]) => (
@@ -275,6 +284,10 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
             <button onClick={() => { setMenu(null); setSel(new Set(id)); setDlg({ k: "message" }); }}><MessageSquare size={16} />{tr("Gửi tin nhắn")}</button>
           </>}
           {on && s.info.version !== st.version && <button onClick={() => { setMenu(null); askUpdate([s]); }}><RefreshCw size={16} />{tr("Cập nhật phần mềm (")}{s.info.version || "?"} → {st.version})</button>}
+          {on && !isFree(effOf(s.id)) && <button onClick={() => { setMenu(null); run(tr("Đã bỏ giới hạn cho {0}", displayName(s)), () => api.setPolicy(NO_POLICY, [s.id])); }}>
+            <ShieldOff size={16} />{tr("Bỏ giới hạn cho máy này")}</button>}
+          {on && overrides[s.id] && <button onClick={() => { setMenu(null); run(tr("{0} dùng lại giới hạn chung", displayName(s)), () => api.clearOverride([s.id])); }}>
+            <ShieldCheck size={16} />{tr("Dùng giới hạn chung của lớp")}</button>}
           <button onClick={() => { setMenu(null); setDlg({ k: "rename", s }); }}><Pencil size={16} />{tr("Đặt tên hiển thị")}</button>
           {!on && <button className="danger" onClick={() => { setMenu(null); setDlg({ k: "confirm", title: tr("Gỡ máy khỏi danh sách?"), danger: true, ok: tr("Gỡ"),
             text: tr("Máy này sẽ hiện lại khi tự nối về. Muốn máy không nối về nữa, hãy gỡ LabControl trên máy đó."), run: () => api.remove(s.id) }); }}>
@@ -313,7 +326,7 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
 
 // ------------------------------------------------------------------ ô màn hình
 function Flags({ s }: { s: Student }) {
-  const { policy } = useStore();
+  const { policy, overrides } = useStore();
   const t = s.status;
   if (!t || s.state !== "online") return null;
   return <>
@@ -322,7 +335,8 @@ function Flags({ s }: { s: Student }) {
     {t.showing && <span className="flag pri" title={tr("Đang xem trình chiếu")}><Cast size={12} /></span>}
     {t.exam && <span className="flag warn" title={tr("Chế độ thi")}><ShieldAlert size={12} /></span>}
     {t.web_blocked && !t.exam && <span className="flag warn" title={tr("Đang chặn web")}><Ban size={12} /></span>}
-    {!t.helper && policy.block_web.length > 0 && <span className="flag" title={tr("Máy chưa cài dịch vụ Helper: không chặn web được")}><ShieldOff size={12} /></span>}
+    {overrides[s.id] && <span className="flag pri" title={tr("Giới hạn riêng cho máy này")}><UserCog size={12} /></span>}
+    {!t.helper && (overrides[s.id] ?? policy).block_web.length > 0 && <span className="flag" title={tr("Máy chưa cài dịch vụ Helper: không chặn web được")}><ShieldOff size={12} /></span>}
   </>;
 }
 
@@ -485,8 +499,8 @@ function Setup({ openSettings }: { openSettings: (s: string) => void }) {
 }
 
 // ------------------------------------------------------------------ menu chặn
-function WebMenu({ anchor, onClose, policy, list, apply, edit }: {
-  anchor: HTMLElement; onClose: () => void; policy: Policy; list: string[]; apply: (p: Policy) => void; edit: () => void;
+function WebMenu({ anchor, onClose, policy, scope, list, apply, edit }: {
+  anchor: HTMLElement; scope: string; onClose: () => void; policy: Policy; list: string[]; apply: (p: Policy) => void; edit: () => void;
 }) {
   const [on, setOn] = useState<Set<string>>(new Set(policy.block_web));
   const [extra, setExtra] = useState("");
@@ -496,7 +510,7 @@ function WebMenu({ anchor, onClose, policy, list, apply, edit }: {
     if (d) { setOn((s) => new Set(s).add(d)); setExtra(""); }
   };
   return <Menu anchor={anchor} onClose={onClose} width={340}>
-    <div className="mh">{tr("Chặn trang web – cả lớp")}</div>
+    <div className="mh">{tr("Chặn trang web")} – {scope}</div>
     <div style={{ padding: "4px 10px 8px" }} className="col">
       <div className="pills">{[...new Set([...all, ...on])].map((d) => <button key={d} className={`pill ${on.has(d) ? "on" : ""}`}
         onClick={() => setOn((s) => { const n = new Set(s); if (n.has(d)) n.delete(d); else n.add(d); return n; })}>{d}</button>)}</div>
@@ -506,20 +520,20 @@ function WebMenu({ anchor, onClose, policy, list, apply, edit }: {
       <div className="row">
         <button className="btn sm ghost" onClick={edit}>{tr("Sửa danh sách...")}</button>
         <button className="btn sm right" onClick={() => { apply({ ...policy, block_web: [] }); onClose(); }}>{tr("Bỏ chặn")}</button>
-        <button className="btn sm primary" onClick={() => { apply({ ...policy, block_web: [...on] }); onClose(); }}>{tr("Chặn")}{" "}{on.size} trang</button>
+        <button className="btn sm primary" onClick={() => { apply({ ...policy, block_web: [...on] }); onClose(); }}>{tr("Chặn {0} trang", on.size)}</button>
       </div>
     </div>
   </Menu>;
 }
 
-function AppsMenu({ anchor, onClose, policy, list, apply, edit }: {
-  anchor: HTMLElement; onClose: () => void; policy: Policy; list: string[]; apply: (p: Policy) => void; edit: () => void;
+function AppsMenu({ anchor, onClose, policy, scope, list, apply, edit }: {
+  anchor: HTMLElement; scope: string; onClose: () => void; policy: Policy; list: string[]; apply: (p: Policy) => void; edit: () => void;
 }) {
   const [tools, setTools] = useState(policy.block_tools);
   const [on, setOn] = useState<Set<string>>(new Set(policy.block_apps));
   const all = [...new Set([...list, ...policy.block_apps])];
   return <Menu anchor={anchor} onClose={onClose} width={340}>
-    <div className="mh">{tr("Chặn ứng dụng – cả lớp")}</div>
+    <div className="mh">{tr("Chặn ứng dụng")} – {scope}</div>
     <div style={{ padding: "4px 10px 8px" }} className="col">
       <Switch checked={tools} onChange={setTools} label={tr("Chặn công cụ hệ thống")} hint="cmd, PowerShell, Task Manager, Registry, Terminal..." />
       <div className="small muted" style={{ marginTop: 6 }}>{tr("Đóng ngay khi mở:")}</div>

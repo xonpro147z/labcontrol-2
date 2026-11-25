@@ -2,6 +2,17 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.2.1] – 2026-11-25
+
+### Thêm – giới hạn riêng từng máy
+- Chặn web / Chặn ứng dụng / Chế độ thi / Bỏ giới hạn áp dụng cho **các máy đang chọn**; không chọn máy nào thì cho cả lớp
+  (như các lệnh khác). Áp dụng cho cả lớp sẽ xóa mọi giới hạn riêng.
+- Chuột phải vào máy: **Bỏ giới hạn cho máy này** (ví dụ cả lớp bị chặn web nhưng một máy cần mở web) và
+  **Dùng giới hạn chung của lớp**. Máy có giới hạn riêng có biểu tượng trên ô và đầu trang hiện "N máy có giới hạn riêng".
+
+### Sửa
+- Vài chữ "trang web" chưa được dịch sang tiếng Anh.
+
 ## [3.2.0] – 2026-11-25
 
 ### Thêm

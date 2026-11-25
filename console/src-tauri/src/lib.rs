@@ -20,6 +20,7 @@ struct AppState {
     pending: Vec<Pending>,
     showing: bool,
     policy: Policy,
+    overrides: std::collections::HashMap<String, Policy>,
     tasks: Vec<Task>,
     quiz: Option<QuizRun>,
     listen_error: String,
@@ -49,7 +50,7 @@ fn local_addresses() -> Vec<String> {
 fn get_state(h: H<'_>) -> AppState {
     AppState {
         teacher_code: h.teacher_code(), settings: h.settings(), students: h.students(), pending: h.pending(),
-        showing: h.showing(), policy: h.policy(), tasks: h.tasks(), quiz: h.quiz(), listen_error: h.listen_error(),
+        showing: h.showing(), policy: h.policy(), overrides: h.overrides(), tasks: h.tasks(), quiz: h.quiz(), listen_error: h.listen_error(),
         out_dir: h.out_dir().display().to_string(), addresses: local_addresses(), version: env!("CARGO_PKG_VERSION").into(),
         update: h.latest(), bundled: h.bundled_platforms(),
     }
@@ -106,8 +107,13 @@ fn input(h: H<'_>, id: String, ev: InputEv) {
 }
 
 #[tauri::command]
-fn set_policy(h: H<'_>, policy: Policy) -> usize {
-    h.set_policy(policy)
+fn set_policy(h: H<'_>, policy: Policy, ids: Option<Vec<String>>) -> usize {
+    h.set_policy(policy, ids)
+}
+
+#[tauri::command]
+fn clear_override(h: H<'_>, ids: Vec<String>) -> usize {
+    h.clear_override(ids)
 }
 
 #[tauri::command]
@@ -215,7 +221,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_state, set_settings, push_password, remove_student, dismiss_pending, set_seat, auto_seats, set_label,
-            send_ctrl, input, set_policy, send_files, start_show, stop_show, assign, collect, delete_task, open_task_dir,
+            send_ctrl, input, set_policy, clear_override, send_files, start_show, stop_show, assign, collect, delete_task, open_task_dir,
             quiz_start, quiz_stop, open_quiz_csv, check_update, push_update, open_release
         ])
         .run(tauri::generate_context!())

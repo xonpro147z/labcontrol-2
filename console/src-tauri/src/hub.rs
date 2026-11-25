@@ -214,6 +214,8 @@ pub struct Hub {
     pending: Mutex<HashMap<String, Pending>>,
     show: Mutex<Option<Show>>,
     policy: RwLock<Policy>,
+    /// giới hạn riêng của từng máy (thay cho giới hạn chung của lớp)
+    overrides: RwLock<HashMap<String, Policy>>,
     tasks: Mutex<Vec<Task>>,
     quiz: Mutex<Option<QuizRun>>,
     file_seq: AtomicU64,
@@ -290,7 +292,7 @@ impl Hub {
         Ok(Arc::new(Hub {
             app, dir, out_dir, key, fp, acceptor: tokio_rustls::TlsAcceptor::from(srv),
             settings: RwLock::new(settings), students: Mutex::new(students), machines: Mutex::new(machines),
-            pending: Mutex::new(HashMap::new()), show: Mutex::new(None), policy: RwLock::new(Policy::default()),
+            pending: Mutex::new(HashMap::new()), show: Mutex::new(None), policy: RwLock::new(Policy::default()), overrides: RwLock::new(HashMap::new()),
             tasks: Mutex::new(tasks), quiz: Mutex::new(None), file_seq: AtomicU64::new(1), file_meta: Mutex::new(HashMap::new()), conn_seq: AtomicU64::new(1),
             listen_error: RwLock::new(String::new()), res_dir, latest: RwLock::new(None),
         }))
@@ -355,6 +357,15 @@ impl Hub {
 
     pub fn policy(&self) -> Policy {
         self.policy.read().unwrap().clone()
+    }
+
+    pub fn overrides(&self) -> HashMap<String, Policy> {
+        self.overrides.read().unwrap().clone()
+    }
+
+    /// Giới hạn đang áp dụng cho một máy: riêng (nếu có) hoặc chung của lớp
+    fn effective_policy(&self, id: &str) -> Policy {
+        self.overrides.read().unwrap().get(id).cloned().unwrap_or_else(|| self.policy())
     }
 
     pub fn tasks(&self) -> Vec<Task> {
@@ -671,7 +682,7 @@ impl Hub {
         }
         // luôn gửi chính sách hiện tại (kể cả "không giới hạn"), để máy còn giữ giới hạn cũ
         // từ lần Console trước được bỏ ngay
-        let pol = self.policy();
+        let pol = self.effective_policy(&st.id);
         let _ = tx.try_send((K_CTRL, Arc::new(proto::ctrl_bytes(&self.signed_policy(&pol)))));
         if let Some(q) = self.quiz.lock().unwrap().as_ref().filter(|q| q.running && q.results.contains_key(&st.id)) {
             if !q.results[&st.id].done {
@@ -907,10 +918,41 @@ impl Hub {
         Ctrl::SetPolicy { policy: p.clone(), ts, sig }
     }
 
-    pub fn set_policy(&self, p: Policy) -> usize {
-        *self.policy.write().unwrap() = p.clone();
-        let _ = self.app.emit("policy", &p);
-        self.send_ctrl(&self.online_ids(), &self.signed_policy(&p))
+    fn emit_policy(&self) {
+        let _ = self.app.emit("policy", json!({"policy": self.policy(), "overrides": self.overrides()}));
+    }
+
+    /// Đặt giới hạn. `ids` = None: cho cả lớp (xóa mọi giới hạn riêng); Some: chỉ các máy này (giới hạn riêng).
+    pub fn set_policy(&self, p: Policy, ids: Option<Vec<String>>) -> usize {
+        let targets = match ids {
+            None => {
+                *self.policy.write().unwrap() = p.clone();
+                self.overrides.write().unwrap().clear();
+                self.online_ids()
+            }
+            Some(ids) => {
+                let mut o = self.overrides.write().unwrap();
+                for id in &ids {
+                    o.insert(id.clone(), p.clone());
+                }
+                ids
+            }
+        };
+        self.emit_policy();
+        self.send_ctrl(&targets, &self.signed_policy(&p))
+    }
+
+    /// Bỏ giới hạn riêng: các máy này dùng lại giới hạn chung của lớp
+    pub fn clear_override(&self, ids: Vec<String>) -> usize {
+        {
+            let mut o = self.overrides.write().unwrap();
+            for id in &ids {
+                o.remove(id);
+            }
+        }
+        self.emit_policy();
+        let p = self.policy();
+        self.send_ctrl(&ids, &self.signed_policy(&p))
     }
 
     /// Máy học sinh tự bỏ giới hạn sau 3 phút không nhận lại (phòng khi Console bị tắt ngang),
@@ -918,9 +960,11 @@ impl Hub {
     async fn refresh_policy(self: Arc<Self>) {
         loop {
             tokio::time::sleep(Duration::from_secs(60)).await;
-            let p = self.policy();
-            if p != Policy::default() {
-                self.send_ctrl(&self.online_ids(), &self.signed_policy(&p));
+            for id in self.online_ids() {
+                let p = self.effective_policy(&id);
+                if p != Policy::default() {
+                    self.send_ctrl(&[id], &self.signed_policy(&p));
+                }
             }
         }
     }

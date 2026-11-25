@@ -21,6 +21,19 @@ export function tr(key: string, ...args: unknown[]): string {
 }
 
 const EN: Record<string, string> = {
+  "{0} máy có giới hạn riêng": "{0} computers with their own restrictions",
+  "Chuột phải vào máy › Dùng giới hạn chung của lớp": "Right-click a computer › Use the class restrictions",
+  "Bật chế độ thi cho {0} máy đã chọn?": "Turn on exam mode for {0} selected computers?",
+  "Đã bỏ giới hạn cho {0} máy": "Restrictions lifted for {0} computers",
+  "Đã bỏ giới hạn cho {0}": "Restrictions lifted for {0}",
+  "Bỏ giới hạn cho máy này": "Lift restrictions for this computer",
+  "{0} dùng lại giới hạn chung": "{0} uses the class restrictions again",
+  "Dùng giới hạn chung của lớp": "Use the class restrictions",
+  "Giới hạn riêng cho máy này": "This computer has its own restrictions",
+  "Chặn trang web": "Block websites",
+  "cả lớp": "whole class",
+  "Chặn {0} trang web": "Blocking {0} websites",
+  "Chặn {0} trang": "Block {0} sites",
   "Giao diện & ngôn ngữ": "Appearance & language",
   "Ngôn ngữ": "Language",
   "Áp dụng cho cả máy học sinh: màn hình khóa, tin nhắn, bài trắc nghiệm, thông báo.": "Also applies to student computers: lock screen, messages, quizzes, notifications.",
