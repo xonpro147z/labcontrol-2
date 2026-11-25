@@ -317,7 +317,7 @@ function Tile({ s, thumb, sel, onClick, onOpen, onCtx, draggable }: {
         </div>
         {on && <button className="btn ghost sm right" title="Xem / điều khiển" onClick={(e) => { e.stopPropagation(); onOpen(); }}><MousePointer2 size={14} /></button>}
       </div>
-      {on && s.status?.app && <div className="app" title={s.status.title}>{s.status.app}</div>}
+      {on && s.status?.app && <div className="cur-app" title={s.status.title}>{s.status.app}</div>}
     </div>
   );
 }

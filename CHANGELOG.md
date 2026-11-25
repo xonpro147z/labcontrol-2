@@ -2,6 +2,12 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.0.4] – 2026-11-25
+
+### Sửa
+- Ô màn hình học sinh bị kéo cao bằng cả cửa sổ khi máy học sinh đang mở ứng dụng: dòng tên ứng dụng trong ô dùng trùng
+  tên lớp CSS `app` với khung chính của giao diện. Đã đổi tên và kiểm tra với 44 máy trên Chromium (WebView2) và WebKitGTK.
+
 ## [3.0.3] – 2026-11-25
 
 ### Sửa
