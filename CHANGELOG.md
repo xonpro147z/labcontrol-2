@@ -2,6 +2,12 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.0.3] – 2026-11-25
+
+### Sửa
+- Lưới màn hình học sinh bị kéo dài rất cao, ảnh dồn xuống đáy ô trên một số máy Linux (WebKitGTK cũ không hỗ trợ đúng `aspect-ratio`).
+  Ô màn hình nay dùng khung cố định 16:10, hiển thị đúng trên mọi phiên bản.
+
 ## [3.0.2] – 2026-11-23
 
 ### Thêm

@@ -305,7 +305,7 @@ function Tile({ s, thumb, sel, onClick, onOpen, onCtx, draggable }: {
     <div className={`tile ${sel ? "sel" : ""} ${on ? "" : "off"}`} onClick={onClick} onDoubleClick={onOpen} onContextMenu={onCtx}
          draggable={draggable} onDragStart={(e) => e.dataTransfer.setData("text/plain", s.id)}>
       <div className="shot">
-        {on && thumb ? <img src={thumb} alt="" draggable={false} /> : on ? <div className="spinner" /> : <MonitorOff size={26} />}
+        {on && thumb ? <img src={thumb} alt="" draggable={false} /> : <div className="ph">{on ? <div className="spinner" /> : <MonitorOff size={26} />}</div>}
         <div className="flags"><Flags s={s} /></div>
         <input type="checkbox" className="check ck" checked={sel} onChange={onClick} onClick={(e) => e.stopPropagation()} />
       </div>
