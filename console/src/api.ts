@@ -37,6 +37,8 @@ export type InputEv =
   | { t: "mouse_move"; x: number; y: number } | { t: "mouse_button"; button: string; down: boolean }
   | { t: "wheel"; dx: number; dy: number } | { t: "key"; key: string; code: string; down: boolean } | { t: "text"; text: string };
 
+export interface SendBatch { batch: number; files: number; machines: number; total: number; bytes: number }
+export interface Transfer extends SendBatch { label: string; done: number; failed: number; errors: { student: string; name: string; error: string }[]; started: number }
 export interface UpdateInfo { version: string; url: string; notes: string; newer: boolean }
 
 interface AppState {
@@ -57,7 +59,12 @@ export const api = {
   send: (ids: string[], msg: Ctrl) => invoke<number>("send_ctrl", { ids, msg }),
   input: (id: string, ev: InputEv) => invoke("input", { id, ev }),
   setPolicy: (policy: Policy) => invoke<number>("set_policy", { policy }),
-  sendFiles: (ids: string[], paths: string[]) => invoke<number>("send_files", { ids, paths }),
+  sendFiles: async (ids: string[], paths: string[]) => {
+    const b = await invoke<SendBatch>("send_files", { ids, paths });
+    const label = paths.length === 1 ? paths[0].split(/[\\/]/).pop()! : `${paths.length} mục`;
+    set({ transfers: [...snap.transfers, { ...b, label, done: 0, failed: 0, errors: [], started: Date.now() }] });
+    return b;
+  },
   startShow: (ids: string[], fullscreen: boolean) => invoke("start_show", { ids, fullscreen }),
   stopShow: () => invoke("stop_show"),
   assign: (ids: string[], title: string, text: string) => invoke<Task>("assign", { ids, title, text }),
@@ -91,6 +98,7 @@ interface Snap {
   update: UpdateInfo | null;
   bundled: string[];
   log: LogItem[];
+  transfers: Transfer[];
   /** task -> student -> {files, done, error} */
   collects: Record<string, Record<string, { files: number; done: boolean; error?: string }>>;
   v: number;
@@ -98,7 +106,7 @@ interface Snap {
 
 let snap: Snap = {
   students: new Map(), thumbs: new Map(), pending: [], showing: false, policy: NO_POLICY, tasks: [], quiz: null,
-  teacherCode: "", settings: null, listenError: "", outDir: "", addresses: [], version: "", update: null, bundled: [], log: [], collects: {}, v: 0,
+  teacherCode: "", settings: null, listenError: "", outDir: "", addresses: [], version: "", update: null, bundled: [], log: [], transfers: [], collects: {}, v: 0,
 };
 const subs = new Set<() => void>();
 function set(p: Partial<Snap>) {
@@ -118,9 +126,9 @@ type FrameListener = (id: string, url: string) => void;
 const frameListeners = new Set<FrameListener>();
 export function onFrame(f: FrameListener) { frameListeners.add(f); return () => { frameListeners.delete(f); }; }
 
-type FileListener = (e: { student: string; ok: boolean; path: string; error: string }) => void;
-const fileListeners = new Set<FileListener>();
-export function onFileDone(f: FileListener) { fileListeners.add(f); return () => { fileListeners.delete(f); }; }
+export function dismissTransfer(batch: number) {
+  set({ transfers: snap.transfers.filter((t) => t.batch !== batch) });
+}
 
 export const notices = new Set<(t: string) => void>();
 export const infos = new Set<(t: string) => void>();
@@ -150,7 +158,22 @@ export async function startStore() {
     const url = `data:image/jpeg;base64,${e.payload.jpeg}`;
     frameListeners.forEach((f) => f(e.payload.id, url));
   });
-  await listen<{ student: string; ok: boolean; path: string; error: string }>("file_done", (e) => fileListeners.forEach((f) => f(e.payload)));
+  await listen<{ batch: number; student: string; name: string; ok: boolean; error: string }>("file_done", (e) => {
+    const p = e.payload;
+    const i = snap.transfers.findIndex((t) => t.batch === p.batch);
+    if (i < 0) return;
+    const t = { ...snap.transfers[i] };
+    if (p.ok) t.done++;
+    else {
+      t.failed++;
+      const who = snap.students.get(p.student)?.info.name ?? p.student;
+      t.errors = [...t.errors, { student: who, name: p.name, error: p.error }].slice(-50);
+      log(`Gửi ${p.name} tới ${who} thất bại: ${p.error}`, "warn");
+    }
+    const list = [...snap.transfers]; list[i] = t;
+    if (t.done + t.failed >= t.total) log(`Đã gửi “${t.label}” tới ${t.machines} máy: ${t.done}/${t.total} file thành công`);
+    set({ transfers: list });
+  });
   await listen<string>("notice", (e) => { log(e.payload, "warn"); notices.forEach((f) => f(e.payload)); });
   await listen<boolean>("show", (e) => set({ showing: e.payload }));
   await listen<string>("info", (e) => { log(e.payload); infos.forEach((f) => f(e.payload)); });

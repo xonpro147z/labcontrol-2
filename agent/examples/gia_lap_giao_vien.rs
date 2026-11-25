@@ -114,6 +114,18 @@ async fn main() -> anyhow::Result<()> {
             "clear" => pol(Policy::default(), &key),
             "close" => Ctrl::CloseApp { name: arg.into() },
             "run" => Ctrl::RunApp { cmd: arg.into() },
+            "sendf" => {
+                // gửi file cục bộ dưới tên "ThuMuc/<tên file>"
+                let data = std::fs::read(arg)?;
+                let name = format!("ThuMuc/con/{}", std::path::Path::new(arg).file_name().unwrap().to_string_lossy());
+                proto::write_ctrl(&mut wr, &Ctrl::FileBegin { id: 99, name, size: data.len() as u64 }).await?;
+                for c in data.chunks(65536) {
+                    let mut b = 99u64.to_be_bytes().to_vec();
+                    b.extend_from_slice(c);
+                    proto::write_frame(&mut wr, K_FILE, &b).await?;
+                }
+                Ctrl::FileEnd { id: 99 }
+            }
             "setpw" => {
                 let ts = now();
                 Ctrl::SetPairPassword { password: arg.into(), ts, sig: auth::sign_policy(&key, &format!("password:{arg}"), ts) }

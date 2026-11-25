@@ -24,6 +24,17 @@ pub fn safe_name(n: &str) -> String {
     if cleaned.is_empty() { "file".into() } else { cleaned.chars().take(120).collect() }
 }
 
+/// Đường dẫn tương đối an toàn khi giáo viên gửi cả thư mục ("BaiTap/hinh/a.png"):
+/// bỏ "..", ".", ổ đĩa, đường dẫn tuyệt đối; tối đa 8 cấp. Trả về (thư mục con, tên file).
+pub fn safe_rel(name: &str) -> (PathBuf, String) {
+    let parts: Vec<String> = name.replace('\\', "/").split('/')
+        .filter(|p| !p.is_empty() && *p != "." && *p != ".." && !p.contains(':'))
+        .map(safe_name).collect();
+    let file = parts.last().cloned().unwrap_or_else(|| "file".into());
+    let dir: PathBuf = parts.iter().rev().skip(1).take(8).rev().collect();
+    (dir, file)
+}
+
 pub fn unique(dir: &Path, name: &str) -> PathBuf {
     let p = dir.join(name);
     if !p.exists() {
@@ -102,4 +113,16 @@ pub fn collect_list(dir: &Path) -> Result<Vec<(String, PathBuf, u64)>> {
     }
     out.sort();
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn rel_paths() {
+        assert_eq!(safe_rel("a.txt"), (PathBuf::new(), "a.txt".to_string()));
+        assert_eq!(safe_rel("Bai/hinh/a.png"), (PathBuf::from("Bai").join("hinh"), "a.png".to_string()));
+        assert_eq!(safe_rel("../../etc/passwd"), (PathBuf::from("etc"), "passwd".to_string()));
+        assert_eq!(safe_rel("C:\\Windows\\x.dll"), (PathBuf::from("Windows"), "x.dll".to_string()));
+    }
 }

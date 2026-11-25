@@ -239,9 +239,10 @@ async fn handle(
             sh.ui.stop_show();
         }
         Ctrl::FileBegin { id, name, size } => {
-            let dir = receive_dir();
+            let (sub, file) = tasks::safe_rel(&name);
+            let dir = receive_dir().join(sub);
             tokio::fs::create_dir_all(&dir).await?;
-            let dest = tasks::unique(&dir, &tasks::safe_name(&name));
+            let dest = tasks::unique(&dir, &file);
             let tmp = dest.with_extension("dangnhan");
             let file = tokio::fs::File::create(&tmp).await?;
             files.insert(id, Incoming { file, tmp, dest, left: size, update: None });
@@ -309,6 +310,9 @@ async fn handle(
                     let _ = tokio::fs::remove_file(&f.tmp).await;
                     (false, "file nhận thiếu dữ liệu".into())
                 };
+                if ok {
+                    announce_files(sh);
+                }
                 tx.send((K_CTRL, proto::ctrl_bytes(&Ctrl::FileDone { id, ok, path: f.dest.display().to_string(), error }))).await?;
             }
         }
@@ -393,6 +397,34 @@ async fn handle(
         _ => {}
     }
     Ok(())
+}
+
+/// Báo cho học sinh khi nhận xong một đợt file (gộp các file đến cách nhau dưới 2 giây thành một thông báo)
+/// và mở thư mục TuGiaoVien.
+fn announce_files(sh: &Arc<Shared>) {
+    static STATE: std::sync::Mutex<(u64, u32)> = std::sync::Mutex::new((0, 0));
+    let gen = {
+        let mut s = STATE.lock().unwrap();
+        s.0 += 1;
+        s.1 += 1;
+        s.0
+    };
+    let sh = sh.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        let n = {
+            let mut s = STATE.lock().unwrap();
+            if s.0 != gen {
+                return; // còn file đang đến, đợi file cuối
+            }
+            std::mem::take(&mut s.1)
+        };
+        let dir = receive_dir();
+        sh.ui.message(&format!("Giáo viên vừa gửi {n} file cho em.\n\nFile nằm trong thư mục TuGiaoVien trên màn hình nền."));
+        if !sh.guard.current().exam {
+            let _ = open::that_detached(&dir);
+        }
+    });
 }
 
 async fn collect(tx: &mpsc::Sender<(u8, Vec<u8>)>, task: &str, title: &str) -> Result<u32> {

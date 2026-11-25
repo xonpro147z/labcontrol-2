@@ -1,17 +1,18 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AppWindow, Ban, BookOpen, Cast, ChevronDown, ClipboardCheck, Eye, FileUp, Globe, KeyRound, LayoutGrid, List,
   Lock, MessageSquare, MonitorOff, MousePointer2, Pencil, Power, Search, ShieldAlert, ShieldCheck, ShieldOff, Trash2,
-  Unlock, UserX, Wand2, WifiOff, X, Armchair, Rocket, Download, RefreshCw,
+  Unlock, UserX, Wand2, WifiOff, X, Armchair, Rocket, Download, RefreshCw, FolderUp,
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { api, displayName, NO_POLICY, useStore, type Policy, type Student } from "../api";
 import { Confirm, Empty, Menu, Modal, Switch, errText, time, toast } from "../components/ui";
 import { Viewer } from "./Viewer";
 
 type Tab = "all" | "online" | "offline" | "pending";
 type View = "grid" | "plan" | "list";
-type MenuKind = "lock" | "show" | "web" | "apps" | "power" | "ctx";
+type MenuKind = "lock" | "show" | "web" | "apps" | "power" | "ctx" | "send";
 type Dlg =
   | { k: "message" } | { k: "lock" } | { k: "url" } | { k: "run" } | { k: "assign" } | { k: "close" } | { k: "rename"; s: Student }
   | { k: "confirm"; title: string; text: ReactNode; danger?: boolean; ok: string; run: () => Promise<unknown> | void };
@@ -84,14 +85,35 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
     </button>
   );
 
-  const sendFiles = async () => {
-    if (!needOnline()) return;
-    const p = await open({ multiple: true, title: "Chọn file gửi cho học sinh" });
-    const paths = Array.isArray(p) ? p : p ? [p] : [];
-    if (!paths.length) return;
-    const n = await api.sendFiles(targets, paths.map(String));
-    toast(`Đang gửi ${paths.length} file tới ${n / paths.length} máy (thư mục TuGiaoVien trên màn hình nền)`);
+  const sendPaths = async (paths: string[]) => {
+    if (!paths.length || !needOnline()) return;
+    try {
+      const b = await api.sendFiles(targets, paths);
+      toast(`Đang gửi ${b.files} file tới ${b.machines} máy`);
+    } catch (e) { toast(errText(e), "error"); }
   };
+  const pick = async (directory: boolean) => {
+    setMenu(null);
+    if (!needOnline()) return;
+    const p = await open({ multiple: true, directory, title: directory ? "Chọn thư mục gửi cho học sinh" : "Chọn file gửi cho học sinh" });
+    const paths = (Array.isArray(p) ? p : p ? [p] : []).map(String);
+    await sendPaths(paths);
+  };
+  // kéo file/thư mục từ máy tính thả vào cửa sổ để gửi
+  const [dropOver, setDropOver] = useState(false);
+  const sendRef = useRef(sendPaths);
+  sendRef.current = sendPaths;
+  useEffect(() => {
+    let off: (() => void) | undefined;
+    let alive = true;
+    getCurrentWebview().onDragDropEvent((ev) => {
+      const t = ev.payload.type;
+      if (t === "enter" || t === "over") setDropOver(true);
+      else if (t === "leave") setDropOver(false);
+      else if (t === "drop") { setDropOver(false); sendRef.current(ev.payload.paths); }
+    }).then((f) => { if (alive) off = f; else f(); }).catch(() => {});
+    return () => { alive = false; off?.(); };
+  }, []);
 
   const ctxMenu = (s: Student) => (e: React.MouseEvent) => {
     e.preventDefault();
@@ -120,7 +142,7 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
         {tool(anyLocked ? <Lock size={18} /> : <Lock size={18} />, "Khóa máy", openMenu("lock"), { on: anyLocked, tone: "err", caret: true })}
         {tool(<Cast size={18} />, "Trình chiếu", openMenu("show"), { on: showing, caret: true })}
         {tool(<MessageSquare size={18} />, "Tin nhắn", () => needOnline() && setDlg({ k: "message" }))}
-        {tool(<FileUp size={18} />, "Gửi file", sendFiles)}
+        {tool(<FileUp size={18} />, "Gửi file", openMenu("send"), { caret: true })}
         {tool(<Globe size={18} />, "Mở web", () => needOnline() && setDlg({ k: "url" }))}
         {tool(<Rocket size={18} />, "Mở ứng dụng", () => needOnline() && setDlg({ k: "run" }))}
         <div className="sep" />
@@ -217,6 +239,12 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
         <button onClick={() => { setMenu(null); if (needOnline()) run("Đã mở khóa", () => api.send(targets, { t: "unlock" })); }}><Unlock size={16} />Mở khóa</button>
         <hr /><div className="mh">{targetNote}</div>
       </Menu>}
+      {menu?.k === "send" && <Menu anchor={menu.a} onClose={() => setMenu(null)}>
+        <button onClick={() => pick(false)}><FileUp size={16} />Gửi file...</button>
+        <button onClick={() => pick(true)}><FolderUp size={16} />Gửi cả thư mục...</button>
+        <hr /><div className="mh">Hoặc kéo file từ máy tính thả vào cửa sổ này</div>
+        <div className="mh" style={{ textTransform: "none", letterSpacing: 0, paddingTop: 0 }}>{targetNote}. Học sinh nhận ở thư mục TuGiaoVien trên màn hình nền.</div>
+      </Menu>}
       {menu?.k === "show" && <Menu anchor={menu.a} onClose={() => setMenu(null)}>
         <div className="mh">Chiếu màn hình của bạn cho học sinh</div>
         <button onClick={() => { setMenu(null); if (needOnline()) run("Đang trình chiếu toàn màn hình", () => api.startShow(targets, true)); }}><Cast size={16} />Toàn màn hình (khóa máy học sinh)</button>
@@ -277,6 +305,7 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
         onClose={() => setDlg(null)} onConfirm={async () => { await dlg.run(); }} />}
 
       {viewer && <Viewer s={viewer} onClose={() => setViewer(null)} />}
+      {dropOver && <div className="drop-zone"><div><FileUp size={24} />Thả để gửi cho {chosen.length ? `${chosen.length} máy đã chọn` : `cả lớp (${online.length} máy)`}</div></div>}
     </>
   );
 }
@@ -296,14 +325,15 @@ function Flags({ s }: { s: Student }) {
   </>;
 }
 
-function Tile({ s, thumb, sel, onClick, onOpen, onCtx, draggable }: {
-  s: Student; thumb?: string; sel: boolean; onClick: () => void; onOpen: () => void; onCtx: (e: React.MouseEvent) => void; draggable?: boolean;
+function Tile({ s, thumb, sel, onClick, onOpen, onCtx, onGrab }: {
+  s: Student; thumb?: string; sel: boolean; onClick: () => void; onOpen: () => void; onCtx: (e: React.MouseEvent) => void;
+  onGrab?: (e: React.PointerEvent) => void;
 }) {
   const on = s.state === "online";
   const user = s.status?.user || s.info.user;
   return (
     <div className={`tile ${sel ? "sel" : ""} ${on ? "" : "off"}`} onClick={onClick} onDoubleClick={onOpen} onContextMenu={onCtx}
-         draggable={draggable} onDragStart={(e) => e.dataTransfer.setData("text/plain", s.id)}>
+         onPointerDown={onGrab}>
       <div className="shot">
         {on && thumb ? <img src={thumb} alt="" draggable={false} /> : <div className="ph">{on ? <div className="spinner" /> : <MonitorOff size={26} />}</div>}
         <div className="flags"><Flags s={s} /></div>
@@ -330,6 +360,7 @@ function SeatPlan({ list, sel, thumbs, toggle, open, ctx }: {
   const { settings } = useStore();
   const cols = Math.max(2, settings?.seat_cols || 6);
   const [over, setOver] = useState<string | null>(null);
+  const [drag, setDrag] = useState<{ id: string; name: string; x: number; y: number } | null>(null);
   const placed = new Map<string, Student>();
   for (const s of list) if (s.seat) placed.set(`${s.seat[0]},${s.seat[1]}`, s);
   const maxRow = Math.max(-1, ...list.filter((s) => s.seat).map((s) => s.seat![1]));
@@ -341,13 +372,37 @@ function SeatPlan({ list, sel, thumbs, toggle, open, ctx }: {
     const { reload } = await import("../api");
     reload();
   };
-  const drop = (seat: [number, number] | null) => (e: React.DragEvent) => {
-    e.preventDefault(); setOver(null);
-    const id = e.dataTransfer.getData("text/plain");
-    if (id) api.setSeat(id, seat);
+  // Kéo thả bằng con trỏ (không dùng HTML5 drag & drop, vốn bị tắt trong cửa sổ ứng dụng trên Windows)
+  const target = (x: number, y: number) =>
+    (document.elementFromPoint(x, y) as HTMLElement | null)?.closest<HTMLElement>("[data-drop]")?.dataset.drop ?? null;
+  const grab = (s: Student) => (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    const x0 = e.clientX, y0 = e.clientY;
+    let moved = false;
+    const move = (ev: PointerEvent) => {
+      if (!moved && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
+      moved = true;
+      setDrag({ id: s.id, name: displayName(s), x: ev.clientX, y: ev.clientY });
+      setOver(target(ev.clientX, ev.clientY));
+    };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setDrag(null); setOver(null);
+      if (!moved) return;
+      // chặn cú "click" ngay sau khi thả để không chọn/bỏ chọn máy
+      const stop = (ce: Event) => { ce.stopPropagation(); ce.preventDefault(); };
+      window.addEventListener("click", stop, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener("click", stop, { capture: true }), 50);
+      const t = target(ev.clientX, ev.clientY);
+      if (t === "tray") api.setSeat(s.id, null);
+      else if (t) { const [c, r] = t.split(",").map(Number); api.setSeat(s.id, [c, r]); }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
   };
   return (
-    <div className="plan">
+    <div className="plan" style={drag ? { cursor: "grabbing", userSelect: "none" } : undefined}>
       <div className="row">
         <span className="small muted">Kéo thả máy vào chỗ ngồi giống phòng thật. Thả lên máy khác để đổi chỗ.</span>
         <div className="row right">
@@ -362,17 +417,17 @@ function SeatPlan({ list, sel, thumbs, toggle, open, ctx }: {
         {Array.from({ length: rows * cols }, (_, i) => {
           const c = i % cols, r = Math.floor(i / cols), k = `${c},${r}`;
           const s = placed.get(k);
-          return <div key={k} className={`seat ${over === k ? "over" : ""}`} onDragOver={(e) => { e.preventDefault(); setOver(k); }}
-                      onDragLeave={() => setOver(null)} onDrop={drop([c, r])}>
-            {s && <Tile s={s} thumb={thumbs.get(s.id)} sel={sel.has(s.id)} onClick={() => toggle(s.id)} onOpen={() => open(s)} onCtx={ctx(s)} draggable />}
+          return <div key={k} data-drop={k} className={`seat ${over === k ? "over" : ""}`}>
+            {s && <Tile s={s} thumb={thumbs.get(s.id)} sel={sel.has(s.id)} onClick={() => toggle(s.id)} onOpen={() => open(s)} onCtx={ctx(s)} onGrab={grab(s)} />}
           </div>;
         })}
       </div>
-      <div className={`tray ${over === "tray" ? "over" : ""}`} onDragOver={(e) => { e.preventDefault(); setOver("tray"); }} onDragLeave={() => setOver(null)} onDrop={drop(null)}>
+      <div data-drop="tray" className={`tray ${over === "tray" ? "over" : ""}`}>
         <div className="small muted" style={{ marginBottom: 8 }}>Chưa xếp chỗ ({unplaced.length}) – kéo lên sơ đồ</div>
         {unplaced.length ? <div className="grid">{unplaced.map((s) => <Tile key={s.id} s={s} thumb={thumbs.get(s.id)} sel={sel.has(s.id)}
-          onClick={() => toggle(s.id)} onOpen={() => open(s)} onCtx={ctx(s)} draggable />)}</div> : <div className="small faint">Mọi máy đã có chỗ.</div>}
+          onClick={() => toggle(s.id)} onOpen={() => open(s)} onCtx={ctx(s)} onGrab={grab(s)} />)}</div> : <div className="small faint">Mọi máy đã có chỗ.</div>}
       </div>
+      {drag && <div className="drag-ghost" style={{ left: drag.x + 12, top: drag.y + 12 }}>{drag.name}</div>}
     </div>
   );
 }

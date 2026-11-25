@@ -188,6 +188,8 @@ pub struct Hub {
     tasks: Mutex<Vec<Task>>,
     quiz: Mutex<Option<QuizRun>>,
     file_seq: AtomicU64,
+    /// mã file đang gửi -> (đợt gửi, tên file)
+    file_meta: Mutex<HashMap<u64, (u64, String)>>,
     conn_seq: AtomicU64,
     listen_error: RwLock<String>,
     res_dir: Option<PathBuf>,
@@ -259,7 +261,7 @@ impl Hub {
             app, dir, out_dir, key, fp, acceptor: tokio_rustls::TlsAcceptor::from(srv),
             settings: RwLock::new(settings), students: Mutex::new(students), machines: Mutex::new(machines),
             pending: Mutex::new(HashMap::new()), show: Mutex::new(None), policy: RwLock::new(Policy::default()),
-            tasks: Mutex::new(tasks), quiz: Mutex::new(None), file_seq: AtomicU64::new(1), conn_seq: AtomicU64::new(1),
+            tasks: Mutex::new(tasks), quiz: Mutex::new(None), file_seq: AtomicU64::new(1), file_meta: Mutex::new(HashMap::new()), conn_seq: AtomicU64::new(1),
             listen_error: RwLock::new(String::new()), res_dir, latest: RwLock::new(None),
         }))
     }
@@ -678,7 +680,9 @@ impl Hub {
                             let _ = self.app.emit("status", json!({"id": st.id, "status": status}));
                         }
                         Ctrl::FileDone { id, ok, path, error } => {
-                            let _ = self.app.emit("file_done", json!({"student": st.id, "id": id, "ok": ok, "path": path, "error": error}));
+                            let (batch, name) = self.file_meta.lock().unwrap().remove(&id).unwrap_or((0, path.clone()));
+                            let _ = self.app.emit("file_done", json!({"batch": batch, "student": st.id, "name": name, "ok": ok,
+                                                                       "path": path, "error": error}));
                         }
                         Ctrl::Notice { text } => {
                             let name = st.info.read().unwrap().name.clone();
@@ -1031,36 +1035,49 @@ impl Hub {
     }
 
     // -------------------------------------------------------------- gửi file
-    pub fn send_files(self: &Arc<Self>, ids: Vec<String>, paths: Vec<String>) -> usize {
+    /// Gửi file và/hoặc cả thư mục (giữ cấu trúc thư mục con) tới các máy đang trực tuyến.
+    /// Mỗi máy nhận lần lượt từng file; các máy nhận song song.
+    pub fn send_files(self: &Arc<Self>, ids: Vec<String>, paths: Vec<String>) -> Result<SendBatch> {
+        let files = expand_paths(&paths)?;
+        if files.is_empty() {
+            bail!("Thư mục trống, không có file nào để gửi");
+        }
         let targets: Vec<Arc<Student>> = {
             let map = self.students.lock().unwrap();
             ids.iter().filter_map(|i| map.get(i).cloned()).filter(|s| s.online.load(Ordering::Relaxed)).collect()
         };
-        let n = targets.len() * paths.len();
-        for st in targets {
-            for p in &paths {
-                let me = self.clone();
-                let st = st.clone();
-                let p = PathBuf::from(p);
-                let fid = self.file_seq.fetch_add(1, Ordering::Relaxed);
-                tauri::async_runtime::spawn(async move {
-                    if let Err(e) = me.send_one(&st, &p, fid).await {
-                        let _ = me.app.emit("file_done", json!({"student": st.id, "id": fid, "ok": false,
-                                                                 "path": p.display().to_string(), "error": format!("{e:#}")}));
-                    }
-                });
-            }
+        if targets.is_empty() {
+            bail!("Không có máy nào đang trực tuyến trong các máy đã chọn");
         }
-        n
+        let batch = self.file_seq.fetch_add(1, Ordering::Relaxed);
+        let bytes: u64 = files.iter().map(|f| f.2).sum();
+        let out = SendBatch { batch, files: files.len(), machines: targets.len(), total: files.len() * targets.len(), bytes };
+        let files = Arc::new(files);
+        for st in targets {
+            let me = self.clone();
+            let files = files.clone();
+            tauri::async_runtime::spawn(async move {
+                for (path, name, _) in files.iter() {
+                    let fid = me.file_seq.fetch_add(1, Ordering::Relaxed);
+                    me.file_meta.lock().unwrap().insert(fid, (batch, name.clone()));
+                    if let Err(e) = me.send_one(&st, path, name, fid).await {
+                        me.file_meta.lock().unwrap().remove(&fid);
+                        let _ = me.app.emit("file_done", json!({"batch": batch, "student": st.id, "name": name, "ok": false,
+                                                                 "error": format!("{e:#}")}));
+                    }
+                }
+            });
+        }
+        Ok(out)
     }
 
-    async fn send_one(&self, st: &Student, p: &Path, fid: u64) -> Result<()> {
-        let tx = st.tx().ok_or_else(|| anyhow!("máy chưa kết nối"))?;
-        let mut f = tokio::fs::File::open(p).await?;
+    async fn send_one(&self, st: &Student, p: &Path, name: &str, fid: u64) -> Result<()> {
+        let tx = st.tx().ok_or_else(|| anyhow!("máy đã mất kết nối"))?;
+        let mut f = tokio::fs::File::open(p).await.map_err(|e| anyhow!("không mở được file: {e}"))?;
         let size = f.metadata().await?.len();
-        let name = p.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "file".into());
-        tx.send((K_CTRL, Arc::new(proto::ctrl_bytes(&Ctrl::FileBegin { id: fid, name, size })))).await?;
-        let mut buf = vec![0u8; 256 * 1024];
+        tx.send((K_CTRL, Arc::new(proto::ctrl_bytes(&Ctrl::FileBegin { id: fid, name: name.to_string(), size })))).await?;
+        // đoạn 64 KB: hàng đợi mỗi máy giữ tối đa ~3 MB, gửi cho cả lớp không tốn nhiều RAM
+        let mut buf = vec![0u8; 64 * 1024];
         loop {
             let n = f.read(&mut buf).await?;
             if n == 0 {
@@ -1069,9 +1086,9 @@ impl Hub {
             let mut chunk = Vec::with_capacity(n + 8);
             chunk.extend_from_slice(&fid.to_be_bytes());
             chunk.extend_from_slice(&buf[..n]);
-            tx.send((K_FILE, Arc::new(chunk))).await?;
+            tx.send((K_FILE, Arc::new(chunk))).await.map_err(|_| anyhow!("máy đã mất kết nối"))?;
         }
-        tx.send((K_CTRL, Arc::new(proto::ctrl_bytes(&Ctrl::FileEnd { id: fid })))).await?;
+        tx.send((K_CTRL, Arc::new(proto::ctrl_bytes(&Ctrl::FileEnd { id: fid })))).await.map_err(|_| anyhow!("máy đã mất kết nối"))?;
         Ok(())
     }
 
@@ -1134,6 +1151,59 @@ impl Hub {
         }
         Ok(())
     }
+}
+
+#[derive(Serialize)]
+pub struct SendBatch {
+    pub batch: u64,
+    pub files: usize,
+    pub machines: usize,
+    pub total: usize,
+    pub bytes: u64,
+}
+
+const MAX_SEND_FILES: usize = 2000;
+const MAX_SEND_BYTES: u64 = 4 << 30;
+
+/// Danh sách (đường dẫn, tên gửi đi, kích thước). Thư mục được duyệt đệ quy, tên gửi đi giữ
+/// tên thư mục gốc: "BaiTap/hinh/a.png".
+fn expand_paths(paths: &[String]) -> Result<Vec<(PathBuf, String, u64)>> {
+    let mut out = Vec::new();
+    let mut total = 0u64;
+    for p in paths {
+        let p = PathBuf::from(p);
+        let meta = std::fs::metadata(&p).map_err(|e| anyhow!("Không đọc được {}: {e}", p.display()))?;
+        let base = p.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "file".into());
+        if meta.is_file() {
+            total += meta.len();
+            out.push((p, base, meta.len()));
+            continue;
+        }
+        let mut stack = vec![(p.clone(), base, 0usize)];
+        while let Some((dir, rel, depth)) = stack.pop() {
+            let mut entries: Vec<_> = std::fs::read_dir(&dir)?.flatten().collect();
+            entries.sort_by_key(|e| e.file_name());
+            for e in entries {
+                let name = e.file_name().to_string_lossy().to_string();
+                let Ok(ft) = e.file_type() else { continue };
+                let child_rel = format!("{rel}/{name}");
+                if ft.is_dir() && depth < 8 {
+                    stack.push((e.path(), child_rel, depth + 1));
+                } else if ft.is_file() {
+                    let size = e.metadata().map(|m| m.len()).unwrap_or(0);
+                    total += size;
+                    out.push((e.path(), child_rel, size));
+                }
+                if out.len() > MAX_SEND_FILES {
+                    bail!("Quá nhiều file (tối đa {MAX_SEND_FILES} file một lần)");
+                }
+            }
+        }
+    }
+    if total > MAX_SEND_BYTES {
+        bail!("Dung lượng quá lớn (tối đa 4 GB một lần)");
+    }
+    Ok(out)
 }
 
 /// Bỏ đáp án trước khi gửi đề xuống máy học sinh
@@ -1210,6 +1280,20 @@ fn natural(s: &str) -> Vec<(u8, u64, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn expand_folder() {
+        let d = std::env::temp_dir().join(format!("lc-exp-{}", std::process::id()));
+        std::fs::create_dir_all(d.join("BaiTap/hinh")).unwrap();
+        std::fs::write(d.join("BaiTap/de.txt"), b"de").unwrap();
+        std::fs::write(d.join("BaiTap/hinh/a.png"), b"png").unwrap();
+        std::fs::write(d.join("le.txt"), b"x").unwrap();
+        let v = expand_paths(&[d.join("BaiTap").display().to_string(), d.join("le.txt").display().to_string()]).unwrap();
+        let mut names: Vec<_> = v.iter().map(|x| x.1.clone()).collect();
+        names.sort();
+        assert_eq!(names, vec!["BaiTap/de.txt", "BaiTap/hinh/a.png", "le.txt"]);
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
     #[test]
     fn rel_paths_stay_inside() {
         assert_eq!(safe_rel("../../etc/passwd"), PathBuf::from("etc").join("passwd"));

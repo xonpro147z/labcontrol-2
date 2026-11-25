@@ -2,6 +2,20 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.1.1] – 2026-11-25
+
+### Gửi file hoàn chỉnh
+- Gửi **cả thư mục** (giữ nguyên thư mục con), tối đa 2.000 file / 4 GB một lần.
+- **Kéo file hoặc thư mục từ máy tính thả vào cửa sổ** LabControl để gửi cho máy đang chọn hoặc cả lớp.
+- **Bảng tiến độ** góc dưới phải: số file đã gửi / tổng, báo xong, liệt kê máy bị lỗi (ghi cả vào Nhật ký).
+- Máy học sinh **báo cho học sinh** khi nhận xong ("Giáo viên vừa gửi N file…") và mở thư mục TuGiaoVien
+  (không tự mở khi đang ở chế độ thi).
+- Gửi tuần tự từng file cho mỗi máy, đoạn 64 KB: gửi cho cả lớp không chiếm nhiều bộ nhớ máy giáo viên.
+
+### Sửa
+- Kéo thả trong **Sơ đồ phòng** không hoạt động trên Windows (WebView2 tắt kéo thả HTML5 khi ứng dụng nhận file thả từ ngoài).
+  Nay kéo thả bằng con trỏ, chạy trên mọi hệ điều hành.
+
 ## [3.1.0] – 2026-11-25
 
 ### Giao diện mới

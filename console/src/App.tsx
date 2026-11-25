@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ClipboardList, History, LayoutGrid, Monitor, Moon, Settings as SettingsIcon, Sun } from "lucide-react";
 import { api, infos, notices, setSettingsLocal, startStore, useStore } from "./api";
 import { Spinner, toast, Toasts } from "./components/ui";
+import { Transfers } from "./components/Transfers";
 import { Classroom } from "./pages/Classroom";
 import { LogPage } from "./pages/Log";
 import { SettingsModal } from "./pages/Settings";
@@ -51,6 +52,7 @@ export function App() {
         {page === "log" && <LogPage />}
       </main>
       {settingsOpen && <SettingsModal initial={settingsOpen} onClose={() => setSettingsOpen(null)} />}
+      <Transfers />
       <Toasts />
     </div>
   );

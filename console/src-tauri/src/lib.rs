@@ -111,8 +111,8 @@ fn set_policy(h: H<'_>, policy: Policy) -> usize {
 }
 
 #[tauri::command]
-fn send_files(h: H<'_>, ids: Vec<String>, paths: Vec<String>) -> usize {
-    h.send_files(ids, paths)
+fn send_files(h: H<'_>, ids: Vec<String>, paths: Vec<String>) -> Result<hub::SendBatch, String> {
+    h.send_files(ids, paths).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

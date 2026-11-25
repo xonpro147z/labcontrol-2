@@ -99,7 +99,7 @@ Bố cục: thanh biểu tượng bên trái, **thanh công cụ** phía trên, 
 | Khóa máy ▾ | Khóa màn hình kèm lời nhắn (chặn bàn phím, chuột) / Mở khóa |
 | Trình chiếu ▾ | Chiếu màn hình giáo viên: toàn màn hình (khóa bàn phím, chuột; học sinh không thoát ra được) hoặc trong cửa sổ. Máy vào lớp muộn tự nhận trình chiếu. |
 | Tin nhắn | Hiện hộp tin nhắn trên máy học sinh |
-| Gửi file | File vào thư mục `TuGiaoVien` trên màn hình nền của học sinh |
+| Gửi file ▾ | Gửi file hoặc cả thư mục, hoặc **kéo file từ máy tính thả vào cửa sổ LabControl**. Học sinh nhận ở thư mục `TuGiaoVien` trên màn hình nền, có thông báo khi nhận xong. Tiến độ hiện ở góc dưới phải. |
 | Mở web | Mở trang web trên trình duyệt của học sinh |
 | Mở ứng dụng | Mở chương trình trên máy học sinh: chọn nhanh (Word, Excel, Paint, LibreOffice...) hoặc nhập tên / đường dẫn, ví dụ `C:\Program Files (x86)\Scratch 3\Scratch 3.exe`. Thêm ứng dụng hay dùng trong Cài đặt › Danh sách chặn. |
 | Bài tập | Giao bài (xem mục 4) |
