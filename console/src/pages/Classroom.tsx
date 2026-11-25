@@ -1,3 +1,4 @@
+import { tr } from "../i18n";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AppWindow, Ban, BookOpen, Cast, ChevronDown, ClipboardCheck, Eye, FileUp, Globe, KeyRound, LayoutGrid, List,
@@ -42,10 +43,9 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
   const online = all.filter((s) => s.state === "online");
   const outdated = online.filter((s) => s.info.version && s.info.version !== st.version);
   const askUpdate = (list: Student[]) => setDlg({
-    k: "confirm", title: `Cập nhật ${list.length} máy học sinh lên ${st.version}?`, ok: "Cập nhật",
-    text: <>Máy giáo viên gửi phần mềm mới xuống, máy học sinh tự cài và khởi động lại LabControl (khoảng 10–30 giây,
-      học sinh không cần làm gì). Bài đang làm không bị ảnh hưởng.</>,
-    run: async () => { const n = await api.pushUpdate(list.map((s) => s.id), null); toast(`Đang gửi bản cập nhật tới ${n} máy`); },
+    k: "confirm", title: tr("Cập nhật {0} máy học sinh lên {1}?", list.length, st.version), ok: tr("Cập nhật"),
+    text: <>{tr("Máy giáo viên gửi phần mềm mới xuống, máy học sinh tự cài và khởi động lại LabControl (khoảng 10–30 giây, học sinh không cần làm gì). Bài đang làm không bị ảnh hưởng.")}</>,
+    run: async () => { const n = await api.pushUpdate(list.map((s) => s.id), null); toast(tr("Đang gửi bản cập nhật tới {0} máy", n)); },
   });
   const list = useMemo(() => {
     const k = q.trim().toLowerCase();
@@ -60,18 +60,18 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
   // lệnh áp dụng cho máy đang chọn; chưa chọn máy nào = cả lớp
   const chosen = online.filter((s) => sel.has(s.id));
   const targets = (chosen.length ? chosen : online).map((s) => s.id);
-  const targetNote = chosen.length ? `Áp dụng cho ${chosen.length} máy đã chọn` : `Áp dụng cho cả lớp (${online.length} máy)`;
+  const targetNote = chosen.length ? tr("Áp dụng cho {0} máy đã chọn", chosen.length) : tr("Áp dụng cho cả lớp ({0} máy)", online.length);
   const anyLocked = online.some((s) => s.status?.locked);
   const policyOn = JSON.stringify(policy) !== JSON.stringify(NO_POLICY);
 
   const run = async (label: string, f: () => Promise<unknown>) => {
     try {
       const r = await f();
-      toast(typeof r === "number" ? `${label}: ${r} máy` : label);
+      toast(typeof r === "number" ? tr("{0}: {1} máy", label, r) : label);
     } catch (e) { toast(errText(e), "error"); }
   };
   const needOnline = () => {
-    if (!targets.length) { toast("Chưa có máy học sinh nào trực tuyến", "error"); return false; }
+    if (!targets.length) { toast(tr("Chưa có máy học sinh nào trực tuyến"), "error"); return false; }
     return true;
   };
   const setPol = (p: Policy, label: string) => run(label, () => api.setPolicy(p));
@@ -89,13 +89,13 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
     if (!paths.length || !needOnline()) return;
     try {
       const b = await api.sendFiles(targets, paths);
-      toast(`Đang gửi ${b.files} file tới ${b.machines} máy`);
+      toast(tr("Đang gửi {0} file tới {1} máy", b.files, b.machines));
     } catch (e) { toast(errText(e), "error"); }
   };
   const pick = async (directory: boolean) => {
     setMenu(null);
     if (!needOnline()) return;
-    const p = await open({ multiple: true, directory, title: directory ? "Chọn thư mục gửi cho học sinh" : "Chọn file gửi cho học sinh" });
+    const p = await open({ multiple: true, directory, title: directory ? tr("Chọn thư mục gửi cho học sinh") : tr("Chọn file gửi cho học sinh") });
     const paths = (Array.isArray(p) ? p : p ? [p] : []).map(String);
     await sendPaths(paths);
   };
@@ -106,7 +106,9 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
   useEffect(() => {
     let off: (() => void) | undefined;
     let alive = true;
-    getCurrentWebview().onDragDropEvent((ev) => {
+    let wv;
+    try { wv = getCurrentWebview(); } catch { return; }
+    wv.onDragDropEvent((ev) => {
       const t = ev.payload.type;
       if (t === "enter" || t === "over") setDropOver(true);
       else if (t === "leave") setDropOver(false);
@@ -124,85 +126,84 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
   return (
     <>
       <div className="head">
-        <div className="title"><h1>{settings?.room ? `Phòng ${settings.room}` : "Lớp học"}<small>{settings?.teacher_name}</small></h1></div>
-        <span className="chip ok"><span className="dot on" />{online.length}/{all.length} trực tuyến</span>
-        <button className="chip" title="Học sinh nhập mật khẩu này khi cài LabControl" onClick={() => setShowPw(!showPw)}>
-          <KeyRound size={13} />Mật khẩu phòng: <b className="mono">{showPw ? settings?.room_password : "••••••"}</b></button>
-        {!settings?.accept_new && <span className="chip warn">Đang tắt nhận máy mới</span>}
-        {showing && <button className="chip ok" onClick={() => api.stopShow()}><Cast size={13} />Đang trình chiếu · Dừng</button>}
-        {policy.exam && <span className="chip warn"><ShieldAlert size={13} />Chế độ thi</span>}
-        {policy.block_web.length > 0 && <span className="chip warn"><Globe size={13} />Chặn {policy.block_web.length} trang web</span>}
-        {(policy.block_tools || policy.block_apps.length > 0) && !policy.exam && <span className="chip warn"><AppWindow size={13} />Chặn ứng dụng</span>}
-        {outdated.length > 0 && <button className="chip warn" title={`Máy giáo viên đang dùng bản ${st.version}`} onClick={() => askUpdate(outdated)}>
-          <RefreshCw size={13} />{outdated.length} máy dùng bản cũ · Cập nhật</button>}
+        <div className="title"><h1>{settings?.room ? tr("Phòng {0}", settings.room) : tr("Lớp học")}<small>{settings?.teacher_name}</small></h1></div>
+        <span className="chip ok"><span className="dot on" />{online.length}/{all.length}{" "}{tr("trực tuyến")}</span>
+        <button className="chip" title={tr("Học sinh nhập mật khẩu này khi cài LabControl")} onClick={() => setShowPw(!showPw)}>
+          <KeyRound size={13} />{tr("Mật khẩu phòng:")}{" "}<b className="mono">{showPw ? settings?.room_password : "••••••"}</b></button>
+        {!settings?.accept_new && <span className="chip warn">{tr("Đang tắt nhận máy mới")}</span>}
+        {showing && <button className="chip ok" onClick={() => api.stopShow()}><Cast size={13} />{tr("Đang trình chiếu · Dừng")}</button>}
+        {policy.exam && <span className="chip warn"><ShieldAlert size={13} />{tr("Chế độ thi")}</span>}
+        {policy.block_web.length > 0 && <span className="chip warn"><Globe size={13} />{tr("Chặn")}{" "}{policy.block_web.length} trang web</span>}
+        {(policy.block_tools || policy.block_apps.length > 0) && !policy.exam && <span className="chip warn"><AppWindow size={13} />{tr("Chặn ứng dụng")}</span>}
+        {outdated.length > 0 && <button className="chip warn" title={tr("Máy giáo viên đang dùng bản {0}", st.version)} onClick={() => askUpdate(outdated)}>
+          <RefreshCw size={13} />{outdated.length}{" "}{tr("máy dùng bản cũ · Cập nhật")}</button>}
         <div className="right" />
       </div>
 
       <div className="toolbar">
-        {tool(anyLocked ? <Lock size={18} /> : <Lock size={18} />, "Khóa máy", openMenu("lock"), { on: anyLocked, tone: "err", caret: true })}
-        {tool(<Cast size={18} />, "Trình chiếu", openMenu("show"), { on: showing, caret: true })}
-        {tool(<MessageSquare size={18} />, "Tin nhắn", () => needOnline() && setDlg({ k: "message" }))}
-        {tool(<FileUp size={18} />, "Gửi file", openMenu("send"), { caret: true })}
-        {tool(<Globe size={18} />, "Mở web", () => needOnline() && setDlg({ k: "url" }))}
-        {tool(<Rocket size={18} />, "Mở ứng dụng", () => needOnline() && setDlg({ k: "run" }))}
+        {tool(anyLocked ? <Lock size={18} /> : <Lock size={18} />, tr("Khóa máy"), openMenu("lock"), { on: anyLocked, tone: "err", caret: true })}
+        {tool(<Cast size={18} />, tr("Trình chiếu"), openMenu("show"), { on: showing, caret: true })}
+        {tool(<MessageSquare size={18} />, tr("Tin nhắn"), () => needOnline() && setDlg({ k: "message" }))}
+        {tool(<FileUp size={18} />, tr("Gửi file"), openMenu("send"), { caret: true })}
+        {tool(<Globe size={18} />, tr("Mở web"), () => needOnline() && setDlg({ k: "url" }))}
+        {tool(<Rocket size={18} />, tr("Mở ứng dụng"), () => needOnline() && setDlg({ k: "run" }))}
         <div className="sep" />
-        {tool(<BookOpen size={18} />, "Bài tập", () => needOnline() && setDlg({ k: "assign" }))}
-        {tool(<ClipboardCheck size={18} />, "Trắc nghiệm", goTasks)}
+        {tool(<BookOpen size={18} />, tr("Bài tập"), () => needOnline() && setDlg({ k: "assign" }))}
+        {tool(<ClipboardCheck size={18} />, tr("Trắc nghiệm"), goTasks)}
         <div className="sep" />
-        {tool(<Ban size={18} />, "Chặn web", openMenu("web"), { on: policy.block_web.length > 0, tone: "warn", caret: true })}
-        {tool(<AppWindow size={18} />, "Chặn ứng dụng", openMenu("apps"), { on: policy.block_tools || policy.block_apps.length > 0, tone: "warn", caret: true })}
-        {tool(<X size={18} />, "Đóng ứng dụng", () => needOnline() && setDlg({ k: "close" }))}
-        {tool(<ShieldAlert size={18} />, "Chế độ thi", () => setDlg({
-          k: "confirm", title: policy.exam ? "Kết thúc chế độ thi?" : "Bật chế độ thi cho cả lớp?",
-          text: policy.exam ? "Máy học sinh được dùng lại trình duyệt và các ứng dụng." :
-            <>Máy học sinh sẽ hiện dải <b>“Đang trong giờ kiểm tra”</b>; trình duyệt, ứng dụng nhắn tin, điều khiển từ xa
-              và các công cụ hệ thống (cmd, PowerShell, Task Manager...) bị đóng ngay khi mở. Các trang web đang chặn vẫn giữ nguyên.</>,
-          ok: policy.exam ? "Kết thúc" : "Bật chế độ thi",
-          run: () => setPol({ ...policy, exam: !policy.exam }, policy.exam ? "Đã kết thúc chế độ thi" : "Đã bật chế độ thi"),
+        {tool(<Ban size={18} />, tr("Chặn web"), openMenu("web"), { on: policy.block_web.length > 0, tone: "warn", caret: true })}
+        {tool(<AppWindow size={18} />, tr("Chặn ứng dụng"), openMenu("apps"), { on: policy.block_tools || policy.block_apps.length > 0, tone: "warn", caret: true })}
+        {tool(<X size={18} />, tr("Đóng ứng dụng"), () => needOnline() && setDlg({ k: "close" }))}
+        {tool(<ShieldAlert size={18} />, tr("Chế độ thi"), () => setDlg({
+          k: "confirm", title: policy.exam ? tr("Kết thúc chế độ thi?") : tr("Bật chế độ thi cho cả lớp?"),
+          text: policy.exam ? tr("Máy học sinh được dùng lại trình duyệt và các ứng dụng.") :
+            <>{tr("Máy học sinh sẽ hiện dải")}{" "}<b>{tr("“Đang trong giờ kiểm tra”")}</b>{tr("; trình duyệt, ứng dụng nhắn tin, điều khiển từ xa và các công cụ hệ thống (cmd, PowerShell, Task Manager...) bị đóng ngay khi mở. Các trang web đang chặn vẫn giữ nguyên.")}</>,
+          ok: policy.exam ? tr("Kết thúc") : tr("Bật chế độ thi"),
+          run: () => setPol({ ...policy, exam: !policy.exam }, policy.exam ? tr("Đã kết thúc chế độ thi") : tr("Đã bật chế độ thi")),
         }), { on: policy.exam, tone: "warn" })}
         <div className="sep" />
-        {tool(<Power size={18} />, "Nguồn", openMenu("power"), { caret: true })}
-        {policyOn && tool(<ShieldOff size={18} />, "Bỏ giới hạn", () => setPol(NO_POLICY, "Đã bỏ mọi giới hạn"))}
+        {tool(<Power size={18} />, tr("Nguồn"), openMenu("power"), { caret: true })}
+        {policyOn && tool(<ShieldOff size={18} />, tr("Bỏ giới hạn"), () => setPol(NO_POLICY, tr("Đã bỏ mọi giới hạn")))}
         <span className="target-note">{targetNote}</span>
       </div>
 
       {st.update?.newer && !hideUpd && (
-        <div className="banner info"><Download size={16} />Đã có LabControl <b>{st.update.version}</b> (bạn đang dùng {st.version}).
+        <div className="banner info"><Download size={16} />{tr("Đã có LabControl")}{" "}<b>{st.update.version}</b>{" "}{tr("(bạn đang dùng")}{" "}{st.version}).
           <div className="row right">
-            <button className="btn sm primary" onClick={() => api.openRelease(st.update!.url).catch((e) => toast(errText(e), "error"))}>Xem & tải về</button>
-            <button className="btn sm ghost" onClick={() => setHideUpd(true)}>Ẩn</button>
+            <button className="btn sm primary" onClick={() => api.openRelease(st.update!.url).catch((e) => toast(errText(e), "error"))}>{tr("Xem & tải về")}</button>
+            <button className="btn sm ghost" onClick={() => setHideUpd(true)}>{tr("Ẩn")}</button>
           </div></div>
       )}
       {st.listenError && <div className="banner err"><WifiOff size={16} />{st.listenError}</div>}
       {pending.length > 0 && tab !== "pending" && (
-        <div className="banner warn"><UserX size={16} />{pending.length} máy học sinh chưa vào được lớp (chưa ghép hoặc sai mật khẩu phòng).
+        <div className="banner warn"><UserX size={16} />{pending.length}{" "}{tr("máy học sinh chưa vào được lớp (chưa ghép hoặc sai mật khẩu phòng).")}
           <button className="btn sm right" onClick={() => setTab("pending")}>Xem</button></div>
       )}
 
       <div className="filters">
-        <input type="checkbox" className="check" title="Chọn tất cả" checked={allSelected}
+        <input type="checkbox" className="check" title={tr("Chọn tất cả")} checked={allSelected}
                onChange={() => setSel(allSelected ? new Set() : new Set(list.map((s) => s.id)))} />
         <div className="tabs">
-          <button className={tab === "all" ? "active" : ""} onClick={() => setTab("all")}>Tất cả<b>{all.length}</b></button>
-          <button className={tab === "online" ? "active" : ""} onClick={() => setTab("online")}>Trực tuyến<b>{online.length}</b></button>
-          <button className={tab === "offline" ? "active" : ""} onClick={() => setTab("offline")}>Ngoại tuyến<b>{all.length - online.length}</b></button>
-          <button className={tab === "pending" ? "active" : ""} onClick={() => setTab("pending")}>Chưa ghép<b>{pending.length}</b></button>
+          <button className={tab === "all" ? "active" : ""} onClick={() => setTab("all")}>{tr("Tất cả")}<b>{all.length}</b></button>
+          <button className={tab === "online" ? "active" : ""} onClick={() => setTab("online")}>{tr("Trực tuyến")}<b>{online.length}</b></button>
+          <button className={tab === "offline" ? "active" : ""} onClick={() => setTab("offline")}>{tr("Ngoại tuyến")}<b>{all.length - online.length}</b></button>
+          <button className={tab === "pending" ? "active" : ""} onClick={() => setTab("pending")}>{tr("Chưa ghép")}<b>{pending.length}</b></button>
         </div>
-        <div className="search"><Search size={15} /><input placeholder="Tìm máy, học sinh, ứng dụng..." value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="search"><Search size={15} /><input placeholder={tr("Tìm máy, học sinh, ứng dụng...")} value={q} onChange={(e) => setQ(e.target.value)} />
           {q && <X size={14} style={{ cursor: "pointer" }} onClick={() => setQ("")} />}</div>
-        {sel.size > 0 && <button className="btn ghost sm" onClick={() => setSel(new Set())}>Bỏ chọn ({sel.size})</button>}
+        {sel.size > 0 && <button className="btn ghost sm" onClick={() => setSel(new Set())}>{tr("Bỏ chọn (")}{sel.size})</button>}
         <div className="row right">
-          <select className="sel" value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} title="Sắp xếp">
-            <option value="name">Theo tên máy</option><option value="user">Theo học sinh</option><option value="status">Trực tuyến trước</option>
+          <select className="sel" value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} title={tr("Sắp xếp")}>
+            <option value="name">{tr("Theo tên máy")}</option><option value="user">{tr("Theo học sinh")}</option><option value="status">{tr("Trực tuyến trước")}</option>
           </select>
-          {view !== "list" && <div className="seg" title="Cỡ ảnh">
+          {view !== "list" && <div className="seg" title={tr("Cỡ ảnh")}>
             {(["s", "m", "l"] as const).map((k) => <button key={k} className={size === k ? "active" : ""} onClick={() => setSize(k)}>
               {k === "s" ? "S" : k === "m" ? "M" : "L"}</button>)}
           </div>}
           <div className="seg">
-            <button className={view === "grid" ? "active" : ""} onClick={() => setView("grid")} title="Lưới màn hình"><LayoutGrid size={16} /></button>
-            <button className={view === "plan" ? "active" : ""} onClick={() => setView("plan")} title="Sơ đồ phòng"><Armchair size={16} /></button>
-            <button className={view === "list" ? "active" : ""} onClick={() => setView("list")} title="Danh sách"><List size={16} /></button>
+            <button className={view === "grid" ? "active" : ""} onClick={() => setView("grid")} title={tr("Lưới màn hình")}><LayoutGrid size={16} /></button>
+            <button className={view === "plan" ? "active" : ""} onClick={() => setView("plan")} title={tr("Sơ đồ phòng")}><Armchair size={16} /></button>
+            <button className={view === "list" ? "active" : ""} onClick={() => setView("list")} title={tr("Danh sách")}><List size={16} /></button>
           </div>
         </div>
       </div>
@@ -210,20 +211,20 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
       <div className="content" style={{ ["--tile" as string]: SIZES[size] }}>
         {tab === "pending" ? <PendingList /> : all.length === 0 ? <Setup openSettings={openSettings} /> :
           view === "grid" ? (
-            list.length === 0 ? <Empty icon={<Search size={22} />} title="Không có máy nào khớp" /> :
+            list.length === 0 ? <Empty icon={<Search size={22} />} title={tr("Không có máy nào khớp")} /> :
               <div className="grid">{list.map((s) => <Tile key={s.id} s={s} thumb={thumbs.get(s.id)} sel={sel.has(s.id)}
                 onClick={() => toggle(s.id)} onOpen={() => s.state === "online" && setViewer(s)} onCtx={ctxMenu(s)} />)}</div>
           ) : view === "plan" ? (
             <SeatPlan list={list} sel={sel} thumbs={thumbs} toggle={toggle} open={(s) => s.state === "online" && setViewer(s)} ctx={ctxMenu} />
           ) : (
             <table className="table">
-              <thead><tr><th style={{ width: 34 }} /><th>Máy</th><th>Học sinh</th><th>Trạng thái</th><th>Đang dùng</th><th>Địa chỉ</th><th>Phiên bản</th></tr></thead>
+              <thead><tr><th style={{ width: 34 }} /><th>{tr("Máy")}</th><th>{tr("Học sinh")}</th><th>{tr("Trạng thái")}</th><th>{tr("Đang dùng")}</th><th>{tr("Địa chỉ")}</th><th>{tr("Phiên bản")}</th></tr></thead>
               <tbody>{list.map((s) => (
                 <tr key={s.id} className={`click ${sel.has(s.id) ? "sel" : ""}`} onClick={() => toggle(s.id)} onDoubleClick={() => s.state === "online" && setViewer(s)} onContextMenu={ctxMenu(s)}>
                   <td><input type="checkbox" className="check" checked={sel.has(s.id)} onChange={() => toggle(s.id)} onClick={(e) => e.stopPropagation()} /></td>
                   <td><b>{displayName(s)}</b>{s.label && <div className="small faint">{s.info.name}</div>}</td>
                   <td>{s.status?.user || s.info.user || "—"}</td>
-                  <td><span className="row"><span className={`dot ${s.state === "online" ? "on" : ""}`} />{s.state === "online" ? "Trực tuyến" : "Ngoại tuyến"}
+                  <td><span className="row"><span className={`dot ${s.state === "online" ? "on" : ""}`} />{s.state === "online" ? tr("Trực tuyến") : tr("Ngoại tuyến")}
                     <Flags s={s} /></span></td>
                   <td className="small">{s.status?.app || "—"}{s.status?.title ? <span className="faint"> · {s.status.title.slice(0, 50)}</span> : null}</td>
                   <td className="mono">{s.addr}</td>
@@ -235,31 +236,31 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
 
       {/* ------------------------------------------------ menu */}
       {menu?.k === "lock" && <Menu anchor={menu.a} onClose={() => setMenu(null)}>
-        <button onClick={() => { setMenu(null); if (needOnline()) setDlg({ k: "lock" }); }}><Lock size={16} />Khóa màn hình...</button>
-        <button onClick={() => { setMenu(null); if (needOnline()) run("Đã mở khóa", () => api.send(targets, { t: "unlock" })); }}><Unlock size={16} />Mở khóa</button>
+        <button onClick={() => { setMenu(null); if (needOnline()) setDlg({ k: "lock" }); }}><Lock size={16} />{tr("Khóa màn hình...")}</button>
+        <button onClick={() => { setMenu(null); if (needOnline()) run(tr("Đã mở khóa"), () => api.send(targets, { t: "unlock" })); }}><Unlock size={16} />{tr("Mở khóa")}</button>
         <hr /><div className="mh">{targetNote}</div>
       </Menu>}
       {menu?.k === "send" && <Menu anchor={menu.a} onClose={() => setMenu(null)}>
-        <button onClick={() => pick(false)}><FileUp size={16} />Gửi file...</button>
-        <button onClick={() => pick(true)}><FolderUp size={16} />Gửi cả thư mục...</button>
-        <hr /><div className="mh">Hoặc kéo file từ máy tính thả vào cửa sổ này</div>
-        <div className="mh" style={{ textTransform: "none", letterSpacing: 0, paddingTop: 0 }}>{targetNote}. Học sinh nhận ở thư mục TuGiaoVien trên màn hình nền.</div>
+        <button onClick={() => pick(false)}><FileUp size={16} />{tr("Gửi file...")}</button>
+        <button onClick={() => pick(true)}><FolderUp size={16} />{tr("Gửi cả thư mục...")}</button>
+        <hr /><div className="mh">{tr("Hoặc kéo file từ máy tính thả vào cửa sổ này")}</div>
+        <div className="mh" style={{ textTransform: "none", letterSpacing: 0, paddingTop: 0 }}>{targetNote}{tr(". Học sinh nhận ở thư mục TuGiaoVien trên màn hình nền.")}</div>
       </Menu>}
       {menu?.k === "show" && <Menu anchor={menu.a} onClose={() => setMenu(null)}>
-        <div className="mh">Chiếu màn hình của bạn cho học sinh</div>
-        <button onClick={() => { setMenu(null); if (needOnline()) run("Đang trình chiếu toàn màn hình", () => api.startShow(targets, true)); }}><Cast size={16} />Toàn màn hình (khóa máy học sinh)</button>
-        <button onClick={() => { setMenu(null); if (needOnline()) run("Đang trình chiếu trong cửa sổ", () => api.startShow(targets, false)); }}><AppWindow size={16} />Trong cửa sổ</button>
-        {showing && <><hr /><button className="danger" onClick={() => { setMenu(null); api.stopShow(); }}><MonitorOff size={16} />Dừng trình chiếu</button></>}
+        <div className="mh">{tr("Chiếu màn hình của bạn cho học sinh")}</div>
+        <button onClick={() => { setMenu(null); if (needOnline()) run(tr("Đang trình chiếu toàn màn hình"), () => api.startShow(targets, true)); }}><Cast size={16} />{tr("Toàn màn hình (khóa máy học sinh)")}</button>
+        <button onClick={() => { setMenu(null); if (needOnline()) run(tr("Đang trình chiếu trong cửa sổ"), () => api.startShow(targets, false)); }}><AppWindow size={16} />{tr("Trong cửa sổ")}</button>
+        {showing && <><hr /><button className="danger" onClick={() => { setMenu(null); api.stopShow(); }}><MonitorOff size={16} />{tr("Dừng trình chiếu")}</button></>}
       </Menu>}
       {menu?.k === "web" && <WebMenu anchor={menu.a} onClose={() => setMenu(null)} policy={policy} list={settings?.web_list ?? []}
-                                     apply={(p) => setPol(p, p.block_web.length ? `Đang chặn ${p.block_web.length} trang web` : "Đã bỏ chặn web")}
+                                     apply={(p) => setPol(p, p.block_web.length ? tr("Đang chặn {0} trang web", p.block_web.length) : tr("Đã bỏ chặn web"))}
                                      edit={() => { setMenu(null); openSettings("lists"); }} />}
       {menu?.k === "apps" && <AppsMenu anchor={menu.a} onClose={() => setMenu(null)} policy={policy} list={settings?.app_list ?? []}
-                                       apply={(p) => setPol(p, "Đã cập nhật chặn ứng dụng")} edit={() => { setMenu(null); openSettings("lists"); }} />}
+                                       apply={(p) => setPol(p, tr("Đã cập nhật chặn ứng dụng"))} edit={() => { setMenu(null); openSettings("lists"); }} />}
       {menu?.k === "power" && <Menu anchor={menu.a} onClose={() => setMenu(null)}>
-        {([["shutdown", "Tắt máy"], ["restart", "Khởi động lại"], ["logoff", "Đăng xuất"]] as const).map(([a, l]) => (
+        {([["shutdown", tr("Tắt máy")], ["restart", tr("Khởi động lại")], ["logoff", tr("Đăng xuất")]] as const).map(([a, l]) => (
           <button key={a} onClick={() => { setMenu(null); if (needOnline()) setDlg({ k: "confirm", title: `${l}?`, danger: true, ok: l,
-            text: `${l} ${targets.length} máy học sinh. Bài đang làm chưa lưu có thể bị mất.`, run: () => api.send(targets, { t: "power", action: a }) }); }}>
+            text: tr("{0} {1} máy học sinh. Bài đang làm chưa lưu có thể bị mất.", l, targets.length), run: () => api.send(targets, { t: "power", action: a }) }); }}>
             <Power size={16} />{l}</button>))}
         <hr /><div className="mh">{targetNote}</div>
       </Menu>}
@@ -268,44 +269,44 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
         return <Menu anchor={menu.a} onClose={() => setMenu(null)}>
           <div className="mh">{displayName(s)}</div>
           {on && <>
-            <button onClick={() => { setMenu(null); setViewer(s); }}><Eye size={16} />Xem / điều khiển</button>
-            <button onClick={() => { setMenu(null); api.send(id, { t: "lock", message: "Hãy chú ý lên giáo viên" }); }}><Lock size={16} />Khóa</button>
-            <button onClick={() => { setMenu(null); api.send(id, { t: "unlock" }); }}><Unlock size={16} />Mở khóa</button>
-            <button onClick={() => { setMenu(null); setSel(new Set(id)); setDlg({ k: "message" }); }}><MessageSquare size={16} />Gửi tin nhắn</button>
+            <button onClick={() => { setMenu(null); setViewer(s); }}><Eye size={16} />{tr("Xem / điều khiển")}</button>
+            <button onClick={() => { setMenu(null); api.send(id, { t: "lock", message: tr("Hãy chú ý lên giáo viên") }); }}><Lock size={16} />{tr("Khóa")}</button>
+            <button onClick={() => { setMenu(null); api.send(id, { t: "unlock" }); }}><Unlock size={16} />{tr("Mở khóa")}</button>
+            <button onClick={() => { setMenu(null); setSel(new Set(id)); setDlg({ k: "message" }); }}><MessageSquare size={16} />{tr("Gửi tin nhắn")}</button>
           </>}
-          {on && s.info.version !== st.version && <button onClick={() => { setMenu(null); askUpdate([s]); }}><RefreshCw size={16} />Cập nhật phần mềm ({s.info.version || "?"} → {st.version})</button>}
-          <button onClick={() => { setMenu(null); setDlg({ k: "rename", s }); }}><Pencil size={16} />Đặt tên hiển thị</button>
-          {!on && <button className="danger" onClick={() => { setMenu(null); setDlg({ k: "confirm", title: "Gỡ máy khỏi danh sách?", danger: true, ok: "Gỡ",
-            text: "Máy này sẽ hiện lại khi tự nối về. Muốn máy không nối về nữa, hãy gỡ LabControl trên máy đó.", run: () => api.remove(s.id) }); }}>
-            <Trash2 size={16} />Gỡ khỏi danh sách</button>}
+          {on && s.info.version !== st.version && <button onClick={() => { setMenu(null); askUpdate([s]); }}><RefreshCw size={16} />{tr("Cập nhật phần mềm (")}{s.info.version || "?"} → {st.version})</button>}
+          <button onClick={() => { setMenu(null); setDlg({ k: "rename", s }); }}><Pencil size={16} />{tr("Đặt tên hiển thị")}</button>
+          {!on && <button className="danger" onClick={() => { setMenu(null); setDlg({ k: "confirm", title: tr("Gỡ máy khỏi danh sách?"), danger: true, ok: tr("Gỡ"),
+            text: tr("Máy này sẽ hiện lại khi tự nối về. Muốn máy không nối về nữa, hãy gỡ LabControl trên máy đó."), run: () => api.remove(s.id) }); }}>
+            <Trash2 size={16} />{tr("Gỡ khỏi danh sách")}</button>}
         </Menu>;
       })()}
 
       {/* ------------------------------------------------ hộp thoại */}
-      {dlg?.k === "message" && <TextDialog title="Gửi tin nhắn" label="Nội dung" note={targetNote} multiline ok="Gửi"
-        onClose={() => setDlg(null)} onOk={(t) => run("Đã gửi tin nhắn", () => api.send(targets, { t: "message", text: t }))} />}
-      {dlg?.k === "lock" && <TextDialog title="Khóa màn hình học sinh" label="Dòng chữ trên màn hình khóa" initial="Hãy chú ý lên giáo viên"
-        note={targetNote} ok="Khóa" onClose={() => setDlg(null)} onOk={(t) => run("Đã khóa", () => api.send(targets, { t: "lock", message: t }))} />}
-      {dlg?.k === "url" && <TextDialog title="Mở trang web trên máy học sinh" label="Địa chỉ" initial="https://" note={targetNote} ok="Mở"
+      {dlg?.k === "message" && <TextDialog title={tr("Gửi tin nhắn")} label={tr("Nội dung")} note={targetNote} multiline ok={tr("Gửi")}
+        onClose={() => setDlg(null)} onOk={(t) => run(tr("Đã gửi tin nhắn"), () => api.send(targets, { t: "message", text: t }))} />}
+      {dlg?.k === "lock" && <TextDialog title={tr("Khóa màn hình học sinh")} label={tr("Dòng chữ trên màn hình khóa")} initial={tr("Hãy chú ý lên giáo viên")}
+        note={targetNote} ok={tr("Khóa")} onClose={() => setDlg(null)} onOk={(t) => run(tr("Đã khóa"), () => api.send(targets, { t: "lock", message: t }))} />}
+      {dlg?.k === "url" && <TextDialog title={tr("Mở trang web trên máy học sinh")} label={tr("Địa chỉ")} initial="https://" note={targetNote} ok={tr("Mở")}
         onClose={() => setDlg(null)} onOk={(t) => {
           const url = /^https?:\/\//.test(t) ? t : `https://${t}`;
-          return run("Đã mở trang web", () => api.send(targets, { t: "open_url", url }));
+          return run(tr("Đã mở trang web"), () => api.send(targets, { t: "open_url", url }));
         }} />}
       {dlg?.k === "run" && <RunAppDialog note={targetNote} custom={settings?.run_list ?? []}
         oses={online.filter((s) => targets.includes(s.id)).map((s) => s.info.os)}
         onClose={() => setDlg(null)} onEdit={() => { setDlg(null); openSettings("lists"); }}
-        onOk={(c) => run(`Đã mở ${c}`, () => api.send(targets, { t: "run_app", cmd: c }))} />}
+        onOk={(c) => run(tr("Đã mở {0}", c), () => api.send(targets, { t: "run_app", cmd: c }))} />}
       {dlg?.k === "close" && <CloseAppDialog note={targetNote} apps={[...new Set(online.filter((s) => targets.includes(s.id)).map((s) => s.status?.app).filter(Boolean) as string[])]}
-        onClose={() => setDlg(null)} onOk={(n) => run(`Đã yêu cầu đóng ${n}`, () => api.send(targets, { t: "close_app", name: n }))} />}
+        onClose={() => setDlg(null)} onOk={(n) => run(tr("Đã yêu cầu đóng {0}", n), () => api.send(targets, { t: "close_app", name: n }))} />}
       {dlg?.k === "assign" && <AssignDialog note={targetNote} onClose={() => setDlg(null)}
-        onOk={async (title, text) => { await api.assign(targets, title, text); toast(`Đã giao bài “${title}” cho ${targets.length} máy`); }} />}
-      {dlg?.k === "rename" && <TextDialog title={`Tên hiển thị – ${dlg.s.info.name}`} label="Tên (vd: tên học sinh ngồi máy này)" initial={dlg.s.label}
-        ok="Lưu" allowEmpty onClose={() => setDlg(null)} onOk={(t) => api.setLabel(dlg.s.id, t)} />}
+        onOk={async (title, text) => { await api.assign(targets, title, text); toast(tr("Đã giao bài “{0}” cho {1} máy", title, targets.length)); }} />}
+      {dlg?.k === "rename" && <TextDialog title={tr("Tên hiển thị – {0}", dlg.s.info.name)} label={tr("Tên (vd: tên học sinh ngồi máy này)")} initial={dlg.s.label}
+        ok={tr("Lưu")} allowEmpty onClose={() => setDlg(null)} onOk={(t) => api.setLabel(dlg.s.id, t)} />}
       {dlg?.k === "confirm" && <Confirm title={dlg.title} message={dlg.text} danger={dlg.danger} confirmText={dlg.ok}
         onClose={() => setDlg(null)} onConfirm={async () => { await dlg.run(); }} />}
 
       {viewer && <Viewer s={viewer} onClose={() => setViewer(null)} />}
-      {dropOver && <div className="drop-zone"><div><FileUp size={24} />Thả để gửi cho {chosen.length ? `${chosen.length} máy đã chọn` : `cả lớp (${online.length} máy)`}</div></div>}
+      {dropOver && <div className="drop-zone"><div><FileUp size={24} />{tr("Thả để gửi cho")}{" "}{chosen.length ? tr("{0} máy đã chọn", chosen.length) : tr("cả lớp ({0} máy)", online.length)}</div></div>}
     </>
   );
 }
@@ -316,12 +317,12 @@ function Flags({ s }: { s: Student }) {
   const t = s.status;
   if (!t || s.state !== "online") return null;
   return <>
-    {t.locked && <span className="flag err" title="Đang khóa"><Lock size={12} /></span>}
-    {t.viewed && <span className="flag err" title="Đang được xem"><Eye size={12} /></span>}
-    {t.showing && <span className="flag pri" title="Đang xem trình chiếu"><Cast size={12} /></span>}
-    {t.exam && <span className="flag warn" title="Chế độ thi"><ShieldAlert size={12} /></span>}
-    {t.web_blocked && !t.exam && <span className="flag warn" title="Đang chặn web"><Ban size={12} /></span>}
-    {!t.helper && policy.block_web.length > 0 && <span className="flag" title="Máy chưa cài dịch vụ Helper: không chặn web được"><ShieldOff size={12} /></span>}
+    {t.locked && <span className="flag err" title={tr("Đang khóa")}><Lock size={12} /></span>}
+    {t.viewed && <span className="flag err" title={tr("Đang được xem")}><Eye size={12} /></span>}
+    {t.showing && <span className="flag pri" title={tr("Đang xem trình chiếu")}><Cast size={12} /></span>}
+    {t.exam && <span className="flag warn" title={tr("Chế độ thi")}><ShieldAlert size={12} /></span>}
+    {t.web_blocked && !t.exam && <span className="flag warn" title={tr("Đang chặn web")}><Ban size={12} /></span>}
+    {!t.helper && policy.block_web.length > 0 && <span className="flag" title={tr("Máy chưa cài dịch vụ Helper: không chặn web được")}><ShieldOff size={12} /></span>}
   </>;
 }
 
@@ -343,9 +344,9 @@ function Tile({ s, thumb, sel, onClick, onOpen, onCtx, onGrab }: {
         <span className={`dot ${on ? "on" : ""}`} />
         <div style={{ minWidth: 0 }}>
           <div className="nm">{displayName(s)}</div>
-          <div className="us">{user ? user : on ? "Chưa đăng nhập" : "Ngoại tuyến"}</div>
+          <div className="us">{user ? user : on ? tr("Chưa đăng nhập") : tr("Ngoại tuyến")}</div>
         </div>
-        {on && <button className="btn ghost sm right" title="Xem / điều khiển" onClick={(e) => { e.stopPropagation(); onOpen(); }}><MousePointer2 size={14} /></button>}
+        {on && <button className="btn ghost sm right" title={tr("Xem / điều khiển")} onClick={(e) => { e.stopPropagation(); onOpen(); }}><MousePointer2 size={14} /></button>}
       </div>
       {on && s.status?.app && <div className="cur-app" title={s.status.title}>{s.status.app}</div>}
     </div>
@@ -404,15 +405,15 @@ function SeatPlan({ list, sel, thumbs, toggle, open, ctx }: {
   return (
     <div className="plan" style={drag ? { cursor: "grabbing", userSelect: "none" } : undefined}>
       <div className="row">
-        <span className="small muted">Kéo thả máy vào chỗ ngồi giống phòng thật. Thả lên máy khác để đổi chỗ.</span>
+        <span className="small muted">{tr("Kéo thả máy vào chỗ ngồi giống phòng thật. Thả lên máy khác để đổi chỗ.")}</span>
         <div className="row right">
-          <span className="small">Số cột</span>
+          <span className="small">{tr("Số cột")}</span>
           <button className="btn sm" onClick={() => setCols(cols - 1)}>−</button><b>{cols}</b>
           <button className="btn sm" onClick={() => setCols(cols + 1)}>+</button>
-          <button className="btn sm" onClick={() => api.autoSeats(cols)}><Wand2 size={14} />Xếp tự động theo tên</button>
+          <button className="btn sm" onClick={() => api.autoSeats(cols)}><Wand2 size={14} />{tr("Xếp tự động theo tên")}</button>
         </div>
       </div>
-      <div className="desk">Bàn giáo viên</div>
+      <div className="desk">{tr("Bàn giáo viên")}</div>
       <div className="seats" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
         {Array.from({ length: rows * cols }, (_, i) => {
           const c = i % cols, r = Math.floor(i / cols), k = `${c},${r}`;
@@ -423,9 +424,9 @@ function SeatPlan({ list, sel, thumbs, toggle, open, ctx }: {
         })}
       </div>
       <div data-drop="tray" className={`tray ${over === "tray" ? "over" : ""}`}>
-        <div className="small muted" style={{ marginBottom: 8 }}>Chưa xếp chỗ ({unplaced.length}) – kéo lên sơ đồ</div>
+        <div className="small muted" style={{ marginBottom: 8 }}>{tr("Chưa xếp chỗ (")}{unplaced.length}{tr(") – kéo lên sơ đồ")}</div>
         {unplaced.length ? <div className="grid">{unplaced.map((s) => <Tile key={s.id} s={s} thumb={thumbs.get(s.id)} sel={sel.has(s.id)}
-          onClick={() => toggle(s.id)} onOpen={() => open(s)} onCtx={ctx(s)} onGrab={grab(s)} />)}</div> : <div className="small faint">Mọi máy đã có chỗ.</div>}
+          onClick={() => toggle(s.id)} onOpen={() => open(s)} onCtx={ctx(s)} onGrab={grab(s)} />)}</div> : <div className="small faint">{tr("Mọi máy đã có chỗ.")}</div>}
       </div>
       {drag && <div className="drag-ghost" style={{ left: drag.x + 12, top: drag.y + 12 }}>{drag.name}</div>}
     </div>
@@ -435,18 +436,17 @@ function SeatPlan({ list, sel, thumbs, toggle, open, ctx }: {
 // ------------------------------------------------------------------ máy chưa vào được lớp
 function PendingList() {
   const { pending, settings } = useStore();
-  if (!pending.length) return <Empty icon={<ShieldCheck size={22} />} title="Không có máy nào bị từ chối">
-    <div className="small muted">Máy nhập sai mật khẩu phòng hoặc chưa được ghép sẽ hiện ở đây.</div></Empty>;
+  if (!pending.length) return <Empty icon={<ShieldCheck size={22} />} title={tr("Không có máy nào bị từ chối")}>
+    <div className="small muted">{tr("Máy nhập sai mật khẩu phòng hoặc chưa được ghép sẽ hiện ở đây.")}</div></Empty>;
   return <div className="col" style={{ gap: 12 }}>
-    <div className="banner info" style={{ margin: 0 }}>Máy dưới đây đã tìm thấy máy giáo viên nhưng chưa vào được lớp.
-      Hãy kiểm tra mật khẩu phòng trên máy học sinh khớp với <b className="mono">&nbsp;{settings?.room_password}&nbsp;</b>
-      {!settings?.accept_new && <> và bật “Nhận máy mới” trong Cài đặt</>}.</div>
+    <div className="banner info" style={{ margin: 0 }}>{tr("Máy dưới đây đã tìm thấy máy giáo viên nhưng chưa vào được lớp. Hãy kiểm tra mật khẩu phòng trên máy học sinh khớp với")}{" "}<b className="mono">&nbsp;{settings?.room_password}&nbsp;</b>
+      {!settings?.accept_new && <>{" "}{tr("và bật “Nhận máy mới” trong Cài đặt")}</>}.</div>
     <table className="table">
-      <thead><tr><th>Máy</th><th>Người dùng</th><th>Địa chỉ</th><th>Lý do</th><th>Lúc</th><th /></tr></thead>
+      <thead><tr><th>{tr("Máy")}</th><th>{tr("Người dùng")}</th><th>{tr("Địa chỉ")}</th><th>{tr("Lý do")}</th><th>{tr("Lúc")}</th><th /></tr></thead>
       <tbody>{pending.map((p) => <tr key={p.id}>
         <td><b>{p.name}</b></td><td>{p.user || "—"}</td><td className="mono">{p.ip}</td>
         <td className="small" style={{ color: "var(--warn)" }}>{p.reason}</td><td className="small faint">{time(p.at)}</td>
-        <td><button className="btn ghost sm" onClick={() => api.dismissPending(p.id)}>Ẩn</button></td></tr>)}</tbody>
+        <td><button className="btn ghost sm" onClick={() => api.dismissPending(p.id)}>{tr("Ẩn")}</button></td></tr>)}</tbody>
     </table>
   </div>;
 }
@@ -458,27 +458,26 @@ function Setup({ openSettings }: { openSettings: (s: string) => void }) {
   const room = settings?.room ? ` --room "${settings.room}"` : "";
   const cmd = `labcontrol-agent.exe install --password "${pw}"${room}`;
   return <div className="card setup">
-    <div className="card-h"><h2>Đưa máy học sinh vào lớp</h2></div>
+    <div className="card-h"><h2>{tr("Đưa máy học sinh vào lớp")}</h2></div>
     <div className="card-b">
       <div className="steps">
         <div className="step"><div className="col">
-          <b>Máy giáo viên đã sẵn sàng</b>
-          <span className="small muted">Máy học sinh trong cùng mạng LAN sẽ tự tìm thấy máy này{addresses.length ? <> (địa chỉ <span className="mono">{addresses.join(", ")}</span>)</> : null}.
-            Nếu Windows hỏi cho phép LabControl qua tường lửa, hãy chọn <b>Cho phép</b>.</span>
+          <b>{tr("Máy giáo viên đã sẵn sàng")}</b>
+          <span className="small muted">{tr("Máy học sinh trong cùng mạng LAN sẽ tự tìm thấy máy này")}{addresses.length ? <>{" "}{tr("(địa chỉ")}{" "}<span className="mono">{addresses.join(", ")}</span>)</> : null}{tr(". Nếu Windows hỏi cho phép LabControl qua tường lửa, hãy chọn")}{" "}<b>{tr("Cho phép")}</b>.</span>
         </div></div>
         <div className="step"><div className="col">
-          <b>Mật khẩu phòng: <span className="pw">{pw}</span></b>
-          <span className="small muted">Học sinh/kỹ thuật viên nhập mật khẩu này một lần khi cài. Đổi trong <a href="#" onClick={(e) => { e.preventDefault(); openSettings("room"); }}>Cài đặt</a>.</span>
+          <b>{tr("Mật khẩu phòng:")}{" "}<span className="pw">{pw}</span></b>
+          <span className="small muted">{tr("Học sinh/kỹ thuật viên nhập mật khẩu này một lần khi cài. Đổi trong")}{" "}<a href="#" onClick={(e) => { e.preventDefault(); openSettings("room"); }}>{tr("Cài đặt")}</a>.</span>
         </div></div>
         <div className="step"><div className="col" style={{ minWidth: 0 }}>
-          <b>Cài LabControl trên từng máy học sinh (quyền quản trị)</b>
-          <span className="small muted">Chạy <span className="mono">cai-may-hoc-sinh.cmd</span> và nhập mật khẩu phòng, hoặc dùng lệnh:</span>
+          <b>{tr("Cài LabControl trên từng máy học sinh (quyền quản trị)")}</b>
+          <span className="small muted">{tr("Chạy")}{" "}<span className="mono">cai-may-hoc-sinh.cmd</span>{" "}{tr("và nhập mật khẩu phòng, hoặc dùng lệnh:")}</span>
           <div className="code-box">{cmd}</div>
-          <button className="btn sm" style={{ alignSelf: "flex-start" }} onClick={() => navigator.clipboard.writeText(cmd).then(() => toast("Đã chép lệnh"))}>Chép lệnh</button>
+          <button className="btn sm" style={{ alignSelf: "flex-start" }} onClick={() => navigator.clipboard.writeText(cmd).then(() => toast(tr("Đã chép lệnh")))}>{tr("Chép lệnh")}</button>
         </div></div>
         <div className="step"><div className="col">
-          <b>Học sinh đăng nhập – máy tự hiện ở đây</b>
-          <span className="small muted">Lần đầu máy ghép bằng mật khẩu phòng, các lần sau tự vào lớp. Máy học sinh không cần mở tường lửa.</span>
+          <b>{tr("Học sinh đăng nhập – máy tự hiện ở đây")}</b>
+          <span className="small muted">{tr("Lần đầu máy ghép bằng mật khẩu phòng, các lần sau tự vào lớp. Máy học sinh không cần mở tường lửa.")}</span>
         </div></div>
       </div>
     </div>
@@ -497,17 +496,17 @@ function WebMenu({ anchor, onClose, policy, list, apply, edit }: {
     if (d) { setOn((s) => new Set(s).add(d)); setExtra(""); }
   };
   return <Menu anchor={anchor} onClose={onClose} width={340}>
-    <div className="mh">Chặn trang web – cả lớp</div>
+    <div className="mh">{tr("Chặn trang web – cả lớp")}</div>
     <div style={{ padding: "4px 10px 8px" }} className="col">
       <div className="pills">{[...new Set([...all, ...on])].map((d) => <button key={d} className={`pill ${on.has(d) ? "on" : ""}`}
         onClick={() => setOn((s) => { const n = new Set(s); if (n.has(d)) n.delete(d); else n.add(d); return n; })}>{d}</button>)}</div>
-      <div className="row"><input className="input" placeholder="Thêm tên miền, vd: game.vn" value={extra} onChange={(e) => setExtra(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && add()} /><button className="btn sm" onClick={add}>Thêm</button></div>
-      <div className="small faint">Chặn cả www. và m. của tên miền. Cần dịch vụ Helper trên máy học sinh (cài bằng lệnh install).</div>
+      <div className="row"><input className="input" placeholder={tr("Thêm tên miền, vd: game.vn")} value={extra} onChange={(e) => setExtra(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && add()} /><button className="btn sm" onClick={add}>{tr("Thêm")}</button></div>
+      <div className="small faint">{tr("Chặn cả www. và m. của tên miền. Cần dịch vụ Helper trên máy học sinh (cài bằng lệnh install).")}</div>
       <div className="row">
-        <button className="btn sm ghost" onClick={edit}>Sửa danh sách...</button>
-        <button className="btn sm right" onClick={() => { apply({ ...policy, block_web: [] }); onClose(); }}>Bỏ chặn</button>
-        <button className="btn sm primary" onClick={() => { apply({ ...policy, block_web: [...on] }); onClose(); }}>Chặn {on.size} trang</button>
+        <button className="btn sm ghost" onClick={edit}>{tr("Sửa danh sách...")}</button>
+        <button className="btn sm right" onClick={() => { apply({ ...policy, block_web: [] }); onClose(); }}>{tr("Bỏ chặn")}</button>
+        <button className="btn sm primary" onClick={() => { apply({ ...policy, block_web: [...on] }); onClose(); }}>{tr("Chặn")}{" "}{on.size} trang</button>
       </div>
     </div>
   </Menu>;
@@ -520,15 +519,15 @@ function AppsMenu({ anchor, onClose, policy, list, apply, edit }: {
   const [on, setOn] = useState<Set<string>>(new Set(policy.block_apps));
   const all = [...new Set([...list, ...policy.block_apps])];
   return <Menu anchor={anchor} onClose={onClose} width={340}>
-    <div className="mh">Chặn ứng dụng – cả lớp</div>
+    <div className="mh">{tr("Chặn ứng dụng – cả lớp")}</div>
     <div style={{ padding: "4px 10px 8px" }} className="col">
-      <Switch checked={tools} onChange={setTools} label="Chặn công cụ hệ thống" hint="cmd, PowerShell, Task Manager, Registry, Terminal..." />
-      <div className="small muted" style={{ marginTop: 6 }}>Đóng ngay khi mở:</div>
+      <Switch checked={tools} onChange={setTools} label={tr("Chặn công cụ hệ thống")} hint="cmd, PowerShell, Task Manager, Registry, Terminal..." />
+      <div className="small muted" style={{ marginTop: 6 }}>{tr("Đóng ngay khi mở:")}</div>
       <div className="pills">{all.map((d) => <button key={d} className={`pill ${on.has(d) ? "on" : ""}`}
         onClick={() => setOn((s) => { const n = new Set(s); if (n.has(d)) n.delete(d); else n.add(d); return n; })}>{d}</button>)}</div>
       <div className="row">
-        <button className="btn sm ghost" onClick={edit}>Sửa danh sách...</button>
-        <button className="btn sm primary right" onClick={() => { apply({ ...policy, block_tools: tools, block_apps: [...on] }); onClose(); }}>Áp dụng</button>
+        <button className="btn sm ghost" onClick={edit}>{tr("Sửa danh sách...")}</button>
+        <button className="btn sm primary right" onClick={() => { apply({ ...policy, block_tools: tools, block_apps: [...on] }); onClose(); }}>{tr("Áp dụng")}</button>
       </div>
     </div>
   </Menu>;
@@ -545,24 +544,24 @@ function TextDialog({ title, label, initial = "", note, ok, multiline, allowEmpt
     if (!t.trim() && !allowEmpty) return;
     try { await onOk(t.trim()); onClose(); } catch (e) { toast(errText(e), "error"); }
   };
-  return <Modal title={title} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Hủy</button>
+  return <Modal title={title} onClose={onClose} footer={<><button className="btn" onClick={onClose}>{tr("Hủy")}</button>
     <button className="btn primary" disabled={!t.trim() && !allowEmpty} onClick={go}>{ok}</button></>}>
     <div className="field"><label>{label}</label>
       {multiline ? <textarea ref={ref} autoFocus className="input" rows={4} value={t} onChange={(e) => setT(e.target.value)}
                              onKeyDown={(e) => e.key === "Enter" && e.ctrlKey && go()} />
         : <input ref={ref} autoFocus className="input" value={t} onChange={(e) => setT(e.target.value)} onKeyDown={(e) => e.key === "Enter" && go()} />}
-      {note && <span className="hint">{note}{multiline ? " · Ctrl+Enter để gửi" : ""}</span>}</div>
+      {note && <span className="hint">{note}{multiline ? tr(" · Ctrl+Enter để gửi") : ""}</span>}</div>
   </Modal>;
 }
 
 function CloseAppDialog({ note, apps, onClose, onOk }: { note: string; apps: string[]; onClose: () => void; onOk: (n: string) => unknown }) {
   const [n, setN] = useState("");
-  return <Modal title="Đóng ứng dụng trên máy học sinh" onClose={onClose} footer={<><button className="btn" onClick={onClose}>Hủy</button>
-    <button className="btn primary" disabled={!n.trim()} onClick={async () => { await onOk(n.trim()); onClose(); }}>Đóng ứng dụng</button></>}>
-    <div className="field"><label>Tên tiến trình</label>
+  return <Modal title={tr("Đóng ứng dụng trên máy học sinh")} onClose={onClose} footer={<><button className="btn" onClick={onClose}>{tr("Hủy")}</button>
+    <button className="btn primary" disabled={!n.trim()} onClick={async () => { await onOk(n.trim()); onClose(); }}>{tr("Đóng ứng dụng")}</button></>}>
+    <div className="field"><label>{tr("Tên tiến trình")}</label>
       <input className="input" autoFocus placeholder="vd: chrome.exe, zalo.exe, game.exe" value={n} onChange={(e) => setN(e.target.value)} />
-      <span className="hint">{note}. Muốn chặn hẳn (mở lại cũng bị đóng), dùng “Chặn ứng dụng”.</span></div>
-    {apps.length > 0 && <div className="field"><label>Đang mở trên các máy</label>
+      <span className="hint">{note}{tr(". Muốn chặn hẳn (mở lại cũng bị đóng), dùng “Chặn ứng dụng”.")}</span></div>
+    {apps.length > 0 && <div className="field"><label>{tr("Đang mở trên các máy")}</label>
       <div className="pills">{apps.map((a) => <button key={a} className={`pill ${n === a ? "on" : ""}`} onClick={() => setN(a)}>{a}</button>)}</div></div>}
   </Modal>;
 }
@@ -571,26 +570,25 @@ function AssignDialog({ note, onClose, onOk }: { note: string; onClose: () => vo
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [err, setErr] = useState("");
-  return <Modal title="Giao bài tập" onClose={onClose} footer={<><button className="btn" onClick={onClose}>Hủy</button>
+  return <Modal title={tr("Giao bài tập")} onClose={onClose} footer={<><button className="btn" onClick={onClose}>{tr("Hủy")}</button>
     <button className="btn primary" disabled={!title.trim()} onClick={async () => {
       try { await onOk(title.trim(), text); onClose(); } catch (e) { setErr(errText(e)); }
-    }}>Giao bài</button></>}>
-    <div className="field"><label>Tên bài</label><input className="input" autoFocus placeholder="vd: Bài 3 – Vòng lặp" value={title} onChange={(e) => setTitle(e.target.value)} /></div>
-    <div className="field"><label>Đề bài / hướng dẫn</label><textarea className="input" rows={5} value={text} onChange={(e) => setText(e.target.value)} />
-      <span className="hint">Máy học sinh tạo thư mục <b>BaiLam\{title.trim() || "<tên bài>"}</b> trên màn hình nền, kèm file DE-BAI.txt. {note}.
-        Thu bài ở trang “Bài & kiểm tra”.</span></div>
+    }}>{tr("Giao bài")}</button></>}>
+    <div className="field"><label>{tr("Tên bài")}</label><input className="input" autoFocus placeholder={tr("vd: Bài 3 – Vòng lặp")} value={title} onChange={(e) => setTitle(e.target.value)} /></div>
+    <div className="field"><label>{tr("Đề bài / hướng dẫn")}</label><textarea className="input" rows={5} value={text} onChange={(e) => setText(e.target.value)} />
+      <span className="hint">{tr("Máy học sinh tạo thư mục")}{" "}<b>BaiLam\{title.trim() || tr("<tên bài>")}</b>{" "}{tr("trên màn hình nền, kèm file DE-BAI.txt.")}{" "}{note}{tr(". Thu bài ở trang “Bài & kiểm tra”.")}</span></div>
     {err && <div className="err">{err}</div>}
   </Modal>;
 }
 
 // ------------------------------------------------------------------ mở ứng dụng
-const WIN_APPS: [string, string][] = [
-  ["Notepad", "notepad"], ["Paint", "mspaint"], ["Máy tính", "calc"], ["Word", "winword"], ["Excel", "excel"],
+const WIN_APPS = (): [string, string][] => [
+  ["Notepad", "notepad"], ["Paint", "mspaint"], [tr("Máy tính"), "calc"], ["Word", "winword"], ["Excel", "excel"],
   ["PowerPoint", "powerpnt"], ["File Explorer", "explorer"], ["Chrome", "chrome"], ["Edge", "msedge"],
 ];
-const LINUX_APPS: [string, string][] = [
-  ["Soạn văn bản", "xed"], ["Writer", "libreoffice --writer"], ["Calc", "libreoffice --calc"],
-  ["Impress", "libreoffice --impress"], ["Quản lý file", "nemo"], ["Firefox", "firefox"], ["Chrome", "google-chrome"],
+const LINUX_APPS = (): [string, string][] => [
+  [tr("Soạn văn bản"), "xed"], ["Writer", "libreoffice --writer"], ["Calc", "libreoffice --calc"],
+  ["Impress", "libreoffice --impress"], [tr("Quản lý file"), "nemo"], ["Firefox", "firefox"], ["Chrome", "google-chrome"],
 ];
 
 function RunAppDialog({ note, custom, oses, onClose, onOk, onEdit }: {
@@ -601,18 +599,18 @@ function RunAppDialog({ note, custom, oses, onClose, onOk, onEdit }: {
   const lin = oses.some((o) => !/windows/i.test(o));
   const quick: [string, string][] = [
     ...custom.map((x) => [x.split(/[\\/]/).pop()!.replace(/\.exe"?$/i, "").replace(/^"/, ""), x] as [string, string]),
-    ...(win ? WIN_APPS : []), ...(lin ? LINUX_APPS : []),
+    ...(win ? WIN_APPS() : []), ...(lin ? LINUX_APPS() : []),
   ];
   const go = async () => { if (c.trim()) { await onOk(c.trim()); onClose(); } };
-  return <Modal title="Mở ứng dụng trên máy học sinh" onClose={onClose} footer={<>
-    <button className="btn ghost" style={{ marginRight: "auto" }} onClick={onEdit}>Sửa danh sách...</button>
-    <button className="btn" onClick={onClose}>Hủy</button>
-    <button className="btn primary" disabled={!c.trim()} onClick={go}>Mở</button></>}>
-    <div className="field"><label>Ứng dụng</label>
+  return <Modal title={tr("Mở ứng dụng trên máy học sinh")} onClose={onClose} footer={<>
+    <button className="btn ghost" style={{ marginRight: "auto" }} onClick={onEdit}>{tr("Sửa danh sách...")}</button>
+    <button className="btn" onClick={onClose}>{tr("Hủy")}</button>
+    <button className="btn primary" disabled={!c.trim()} onClick={go}>{tr("Mở")}</button></>}>
+    <div className="field"><label>{tr("Ứng dụng")}</label>
       <input className="input mono" autoFocus placeholder={win ? "vd: notepad, winword, C:\\...\\Scratch 3.exe" : "vd: firefox, libreoffice --writer"}
              value={c} onChange={(e) => setC(e.target.value)} onKeyDown={(e) => e.key === "Enter" && go()} />
-      <span className="hint">Tên chương trình, đường dẫn đầy đủ, hoặc lệnh có tham số. {note}.</span></div>
-    {quick.length > 0 && <div className="field"><label>Chọn nhanh</label>
+      <span className="hint">{tr("Tên chương trình, đường dẫn đầy đủ, hoặc lệnh có tham số.")}{" "}{note}.</span></div>
+    {quick.length > 0 && <div className="field"><label>{tr("Chọn nhanh")}</label>
       <div className="pills">{quick.map(([label, cmd]) => <button key={cmd} className={`pill ${c === cmd ? "on" : ""}`} title={cmd} onClick={() => setC(cmd)}>{label}</button>)}</div></div>}
   </Modal>;
 }

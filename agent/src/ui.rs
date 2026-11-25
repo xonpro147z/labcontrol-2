@@ -62,7 +62,7 @@ pub fn run(mode: &str, text: &str, fullscreen: bool) -> anyhow::Result<()> {
         "message" => {
             let (w, h) = (520.0, 240.0);
             vp = vp.with_inner_size([w, h]).with_position([(sw - w) / 2.0, (sh - h) / 3.0]).with_resizable(false)
-                .with_title("Tin nhắn từ giáo viên");
+                .with_title(l!("Tin nhắn từ giáo viên", "Message from the teacher"));
             let t = text.to_string();
             Box::new(move |_| Box::new(Message { text: t }))
         }
@@ -70,7 +70,7 @@ pub fn run(mode: &str, text: &str, fullscreen: bool) -> anyhow::Result<()> {
             vp = if fullscreen {
                 vp.with_decorations(false).with_fullscreen(true).with_position([0.0, 0.0]).with_inner_size([sw, sh])
             } else {
-                vp.with_inner_size([sw * 0.7, sh * 0.7]).with_title("Giáo viên đang trình chiếu")
+                vp.with_inner_size([sw * 0.7, sh * 0.7]).with_title(l!("Giáo viên đang trình chiếu", "Teacher presentation"))
             };
             Box::new(move |ctx| {
                 // trình chiếu toàn màn hình: học sinh không thoát ra màn hình chính được (giống màn hình khóa)
@@ -101,7 +101,7 @@ pub fn run(mode: &str, text: &str, fullscreen: bool) -> anyhow::Result<()> {
                 .then(|| std::time::Instant::now() + std::time::Duration::from_secs(init["seconds_left"].as_u64().unwrap_or(0)));
             let (w, h) = ((sw * 0.6).clamp(560.0, 900.0), (sh * 0.8).clamp(420.0, 900.0));
             vp = vp.with_inner_size([w, h]).with_position([(sw - w) / 2.0, (sh - h) / 2.0])
-                .with_title(format!("Trắc nghiệm: {}", quiz.title));
+                .with_title(l!("Trắc nghiệm: {}", "Quiz: {}", quiz.title));
             Box::new(move |_| Box::new(QuizWin { quiz, answers, deadline, confirm: false, sent_done: false }))
         }
         _ => {
@@ -137,7 +137,7 @@ impl eframe::App for Lock {
                 ui.add_space(18.0);
                 ui.label(egui::RichText::new(&self.text).size(34.0).strong().color(egui::Color32::WHITE));
                 ui.add_space(10.0);
-                ui.label(egui::RichText::new("Máy đã bị giáo viên khóa").size(18.0).color(egui::Color32::from_gray(160)));
+                ui.label(egui::RichText::new(l!("Máy đã bị giáo viên khóa", "Your computer is locked by the teacher")).size(18.0).color(egui::Color32::from_gray(160)));
             });
         });
         // luôn ở trên cùng và giữ tiêu điểm
@@ -202,13 +202,13 @@ impl eframe::App for Message {
     fn ui(&mut self, root: &mut egui::Ui, _f: &mut eframe::Frame) {
         let ctx = &root.ctx().clone();
         egui::CentralPanel::default().frame(egui::Frame::new().fill(egui::Color32::WHITE).inner_margin(24)).show(root, |ui| {
-            ui.label(egui::RichText::new("Tin nhắn từ giáo viên").size(15.0).strong().color(INDIGO));
+            ui.label(egui::RichText::new(l!("Tin nhắn từ giáo viên", "Message from the teacher")).size(15.0).strong().color(INDIGO));
             ui.add_space(10.0);
             egui::ScrollArea::vertical().max_height(120.0).show(ui, |ui| {
                 ui.label(egui::RichText::new(&self.text).size(20.0).color(egui::Color32::from_rgb(15, 23, 42)));
             });
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Max), |ui| {
-                let b = egui::Button::new(egui::RichText::new("Đã hiểu").size(16.0).color(egui::Color32::WHITE)).fill(INDIGO);
+                let b = egui::Button::new(egui::RichText::new(l!("Đã hiểu", "OK")).size(16.0).color(egui::Color32::WHITE)).fill(INDIGO);
                 if ui.add_sized([120.0, 36.0], b).clicked() {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
@@ -285,7 +285,7 @@ impl eframe::App for View {
                 }
                 None => {
                     ui.centered_and_justified(|ui| {
-                        ui.label(egui::RichText::new("Đang nhận hình từ giáo viên...").size(22.0).color(egui::Color32::GRAY));
+                        ui.label(egui::RichText::new(l!("Đang nhận hình từ giáo viên...", "Receiving the teacher's screen...")).size(22.0).color(egui::Color32::GRAY));
                     });
                 }
             }
@@ -303,7 +303,7 @@ impl eframe::App for Badge {
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(egui::Color32::from_rgb(220, 38, 38)).inner_margin(egui::Margin::symmetric(12, 8)))
             .show(root, |ui| {
-                ui.label(egui::RichText::new("● Giáo viên đang xem màn hình của bạn").size(15.0).strong().color(egui::Color32::WHITE));
+                ui.label(egui::RichText::new(l!("● Giáo viên đang xem màn hình của bạn", "● The teacher is viewing your screen")).size(15.0).strong().color(egui::Color32::WHITE));
             });
     }
 }
@@ -319,7 +319,7 @@ impl eframe::App for Exam {
             .frame(egui::Frame::new().fill(egui::Color32::from_rgb(217, 119, 6)).inner_margin(egui::Margin::symmetric(12, 7)))
             .show(root, |ui| {
                 ui.vertical_centered(|ui| {
-                    ui.label(egui::RichText::new("ĐANG TRONG GIỜ KIỂM TRA").size(15.0).strong().color(egui::Color32::WHITE));
+                    ui.label(egui::RichText::new(l!("ĐANG TRONG GIỜ KIỂM TRA", "EXAM IN PROGRESS")).size(15.0).strong().color(egui::Color32::WHITE));
                 });
             });
     }
@@ -362,7 +362,7 @@ impl eframe::App for QuizWin {
                         let c = if l < 60 { egui::Color32::from_rgb(254, 202, 202) } else { egui::Color32::WHITE };
                         ui.label(egui::RichText::new(format!("⏱ {:02}:{:02}", l / 60, l % 60)).size(20.0).strong().color(c));
                     }
-                    ui.label(egui::RichText::new(format!("Đã làm {answered}/{}", self.quiz.questions.len())).size(15.0)
+                    ui.label(egui::RichText::new(l!("Đã làm {answered}/{}", "Answered {answered}/{}", self.quiz.questions.len())).size(15.0)
                         .color(egui::Color32::from_rgb(204, 251, 241)));
                 });
             });
@@ -370,19 +370,19 @@ impl eframe::App for QuizWin {
         egui::Panel::bottom("foot").frame(egui::Frame::new().fill(egui::Color32::from_rgb(241, 245, 249)).inner_margin(egui::Margin::symmetric(18, 10))).show(root, |ui| {
             ui.horizontal(|ui| {
                 if self.sent_done {
-                    ui.label(egui::RichText::new("Đã nộp bài. Chờ giáo viên...").size(16.0).strong().color(INDIGO));
+                    ui.label(egui::RichText::new(l!("Đã nộp bài. Chờ giáo viên...", "Handed in. Waiting for the teacher...")).size(16.0).strong().color(INDIGO));
                 } else if self.confirm {
-                    ui.label(egui::RichText::new(format!("Nộp bài? Còn {} câu chưa làm.", self.quiz.questions.len() - answered)).size(15.0).color(INK));
-                    if ui.add_sized([90.0, 34.0], egui::Button::new(egui::RichText::new("Nộp").size(16.0).color(egui::Color32::WHITE)).fill(INDIGO)).clicked() {
+                    ui.label(egui::RichText::new(l!("Nộp bài? Còn {} câu chưa làm.", "Hand in? {} questions unanswered.", self.quiz.questions.len() - answered)).size(15.0).color(INK));
+                    if ui.add_sized([90.0, 34.0], egui::Button::new(egui::RichText::new(l!("Nộp", "Hand in")).size(16.0).color(egui::Color32::WHITE)).fill(INDIGO)).clicked() {
                         self.sent_done = true;
                         self.emit(true);
                     }
-                    if ui.add_sized([100.0, 34.0], egui::Button::new(egui::RichText::new("Làm tiếp").size(16.0).color(INK))).clicked() {
+                    if ui.add_sized([100.0, 34.0], egui::Button::new(egui::RichText::new(l!("Làm tiếp", "Keep working")).size(16.0).color(INK))).clicked() {
                         self.confirm = false;
                     }
                 } else {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let b = egui::Button::new(egui::RichText::new("Nộp bài").size(16.0).color(egui::Color32::WHITE)).fill(INDIGO);
+                        let b = egui::Button::new(egui::RichText::new(l!("Nộp bài", "Hand in")).size(16.0).color(egui::Color32::WHITE)).fill(INDIGO);
                         if ui.add_sized([130.0, 36.0], b).clicked() {
                             self.confirm = true;
                         }
@@ -394,7 +394,7 @@ impl eframe::App for QuizWin {
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 let mut changed = false;
                 for (i, q) in self.quiz.questions.iter().enumerate() {
-                    ui.label(egui::RichText::new(format!("Câu {}. {}", i + 1, q.q)).size(17.0).strong().color(INK));
+                    ui.label(egui::RichText::new(l!("Câu {}. {}", "Question {}. {}", i + 1, q.q)).size(17.0).strong().color(INK));
                     ui.add_space(4.0);
                     for (j, opt) in q.options.iter().enumerate() {
                         let letter = (b'A' + j as u8) as char;

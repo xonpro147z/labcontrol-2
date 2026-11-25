@@ -1,3 +1,6 @@
+import { setLang, tr } from "./i18n";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { glassLevel, resolveMode, themeStyle } from "./theme";
 import { useEffect, useState } from "react";
 import { ClipboardList, History, LayoutGrid, Monitor, Moon, Settings as SettingsIcon, Sun } from "lucide-react";
 import { api, infos, notices, setSettingsLocal, startStore, useStore } from "./api";
@@ -25,26 +28,40 @@ export function App() {
     return () => { notices.delete(f); infos.delete(g); };
   }, []);
 
+  // theo chế độ sáng/tối của hệ điều hành
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
+  useEffect(() => {
+    const m = window.matchMedia?.("(prefers-color-scheme: dark)");
+    const f = (e: MediaQueryListEvent) => setSystemDark(e.matches);
+    m?.addEventListener("change", f);
+    return () => m?.removeEventListener("change", f);
+  }, []);
+  // cỡ giao diện: phóng to/thu nhỏ cả cửa sổ
+  const scale = settings?.font_scale || 100;
+  useEffect(() => { try { getCurrentWebview().setZoom(scale / 100).catch(() => {}); } catch { /* chạy ngoài ứng dụng */ } }, [scale]);
+
+  setLang(settings?.lang || "vi");
+
   if (!ready) return <div className="center"><Spinner /></div>;
-  const dark = !!settings?.dark;
+  const dark = resolveMode(settings, systemDark) === "dark";
   const toggleDark = async () => {
     if (!settings) return;
-    const s = { ...settings, dark: !dark };
+    const s = { ...settings, dark: !dark, theme_mode: dark ? "light" : "dark" };
     setSettingsLocal(s);
     await api.setSettings(s).catch(() => {});
   };
 
   return (
-    <div className={`app ${dark ? "dark" : ""} ${settings?.glass === false ? "no-glass" : ""}`}>
+    <div className={`app ${dark ? "dark" : ""} ${glassLevel(settings) === 0 ? "no-glass" : ""}`} style={themeStyle(settings, dark)}>
       <nav className="rail">
         <div className="logo" title="LabControl"><Monitor size={22} /></div>
         <button className={page === "class" ? "active" : ""} onClick={() => setPage("class")}>
-          <LayoutGrid size={21} />Lớp học{pending.length > 0 && <span className="badge-n">{pending.length}</span>}</button>
+          <LayoutGrid size={21} />{tr("Lớp học")}{pending.length > 0 && <span className="badge-n">{pending.length}</span>}</button>
         <button className={page === "tasks" ? "active" : ""} onClick={() => setPage("tasks")}>
-          <ClipboardList size={21} />Bài & kiểm tra{quiz?.running && <span className="badge-n">●</span>}</button>
-        <button className={page === "log" ? "active" : ""} onClick={() => setPage("log")}><History size={21} />Nhật ký</button>
-        <button onClick={() => setSettingsOpen("room")}><SettingsIcon size={21} />Cài đặt</button>
-        <button className="bottom" onClick={toggleDark}>{dark ? <Sun size={20} /> : <Moon size={20} />}{dark ? "Nền sáng" : "Nền tối"}</button>
+          <ClipboardList size={21} />{tr("Bài & kiểm tra")}{quiz?.running && <span className="badge-n">●</span>}</button>
+        <button className={page === "log" ? "active" : ""} onClick={() => setPage("log")}><History size={21} />{tr("Nhật ký")}</button>
+        <button onClick={() => setSettingsOpen("look")}><SettingsIcon size={21} />{tr("Cài đặt")}</button>
+        <button className="bottom" onClick={toggleDark}>{dark ? <Sun size={20} /> : <Moon size={20} />}{dark ? tr("Nền sáng") : tr("Nền tối")}</button>
       </nav>
       <main className="main">
         {page === "class" && <Classroom openSettings={(s) => setSettingsOpen(s)} goTasks={() => setPage("tasks")} />}

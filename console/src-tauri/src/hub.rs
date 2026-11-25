@@ -22,6 +22,20 @@ use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc;
 
+static LANG_EN: AtomicBool = AtomicBool::new(false);
+
+/// Giao diện đang dùng tiếng Anh
+pub fn en() -> bool {
+    LANG_EN.load(Ordering::Relaxed)
+}
+
+/// Chọn câu theo ngôn ngữ giao diện: l!("tiếng Việt {x}", "English {x}", ...)
+macro_rules! l {
+    ($vi:literal, $en:literal $(, $a:expr)* $(,)?) => {
+        if crate::hub::en() { format!($en $(, $a)*) } else { format!($vi $(, $a)*) }
+    };
+}
+
 pub fn now_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
@@ -50,6 +64,20 @@ pub struct Settings {
     pub dark: bool,
     /// Hiệu ứng kính trong suốt (tắt nếu máy giáo viên yếu)
     pub glass: bool,
+    /// Ngôn ngữ giao diện: "vi" | "en"
+    pub lang: String,
+    /// Chủ đề: "light" | "dark" | "system" (trống = theo `dark`)
+    pub theme_mode: String,
+    /// Màu nhấn (#rrggbb)
+    pub accent: String,
+    /// Hình nền chuyển màu
+    pub wallpaper: String,
+    /// Độ mờ của lớp kính 0..100 (0 = tắt)
+    pub glass_level: u8,
+    /// Cỡ chữ (%)
+    pub font_scale: u16,
+    /// Bo góc: "compact" | "normal" | "round"
+    pub radius: String,
     /// Số cột của sơ đồ phòng
     pub seat_cols: u32,
 }
@@ -64,7 +92,8 @@ impl Default for Settings {
             app_list: ["zalo.exe", "telegram.exe", "discord.exe", "chrome.exe", "msedge.exe", "firefox.exe"]
                 .iter().map(|s| s.to_string()).collect(),
             run_list: vec![],
-            dark: false, glass: true, seat_cols: 6,
+            dark: false, glass: true, lang: "vi".into(), theme_mode: String::new(), accent: "#0a9d94".into(),
+            wallpaper: "aurora".into(), glass_level: 60, font_scale: 100, radius: "normal".into(), seat_cols: 6,
         }
     }
 }
@@ -247,6 +276,7 @@ impl Hub {
             settings.room_password = n.to_string();
             let _ = write_json(&dir.join("settings.json"), &settings);
         }
+        LANG_EN.store(settings.lang == "en", Ordering::Relaxed);
         let machines: HashMap<String, Machine> = read_json(&dir.join("machines.json"));
         let tasks: Vec<Task> = read_json(&dir.join("tasks.json"));
         let students = machines.iter().map(|(id, m)| {
@@ -276,10 +306,16 @@ impl Hub {
 
     pub fn set_settings(&self, s: Settings) -> Result<()> {
         if s.room_password.trim().chars().count() < 4 {
-            bail!("Mật khẩu phòng phải có ít nhất 4 ký tự");
+            bail!("{}", l!("Mật khẩu phòng phải có ít nhất 4 ký tự", "The room password must have at least 4 characters"));
         }
         write_json(&self.dir.join("settings.json"), &s)?;
+        let lang_changed = self.settings.read().unwrap().lang != s.lang;
+        LANG_EN.store(s.lang == "en", Ordering::Relaxed);
+        let lang = s.lang.clone();
         *self.settings.write().unwrap() = s;
+        if lang_changed {
+            self.send_ctrl(&self.online_ids(), &Ctrl::SetLang { lang });
+        }
         Ok(())
     }
 
@@ -382,9 +418,9 @@ impl Hub {
                 }
             }
             let r = agent.get(&format!("https://github.com/{REPO}/releases/latest")).set("User-Agent", "LabControl").call()
-                .map_err(|e| anyhow!("Không kết nối được GitHub (máy chưa có Internet?): {e}"))?;
+                .map_err(|e| anyhow!("{}", l!("Không kết nối được GitHub (máy chưa có Internet?): {e}", "Cannot reach GitHub (no Internet?): {e}")))?;
             let url = r.get_url().to_string();
-            let tag = url.rsplit_once("/tag/").map(|(_, t)| t.to_string()).ok_or_else(|| anyhow!("Chưa có bản phát hành nào"))?;
+            let tag = url.rsplit_once("/tag/").map(|(_, t)| t.to_string()).ok_or_else(|| anyhow!("{}", l!("Chưa có bản phát hành nào", "No release yet")))?;
             Ok((tag, url, String::new()))
         }).await??;
         let info = UpdateInfo {
@@ -484,23 +520,24 @@ impl Hub {
                     Ok(())
                 }.await;
                 if let Err(e) = r {
-                    me.notice(format!("{name}: không gửi được bản cập nhật ({e:#})"));
+                    me.notice(l!("{name}: không gửi được bản cập nhật ({e:#})", "{name}: could not send the update ({e:#})"));
                 }
             });
         }
         if !too_old.is_empty() {
-            let msg = format!("{} máy dùng bản cũ hơn 3.0.2 ({}) chưa nhận được cập nhật từ xa: hãy cài lại bằng tay một lần.",
-                              too_old.len(), too_old.join(", "));
+            let msg = l!("{} máy dùng bản cũ hơn 3.0.2 ({}) chưa nhận được cập nhật từ xa: hãy cài lại bằng tay một lần.",
+                         "{} computers run a version older than 3.0.2 ({}) and cannot update remotely: reinstall them by hand once.",
+                         too_old.len(), too_old.join(", "));
             if n == 0 && missing.is_empty() {
                 bail!("{msg}");
             }
             self.notice(msg);
         }
         if !missing.is_empty() && n == 0 {
-            bail!("Không có file Agent cho máy: {}. Hãy chọn file Agent bằng “Dùng file khác…”.", missing.join(", "));
+            bail!("{}", l!("Không có file Agent cho máy: {}. Hãy chọn file Agent bằng “Dùng file khác…”.", "No Agent file for: {}. Choose one with “Use another Agent file…”.", missing.join(", ")));
         }
         if !missing.is_empty() {
-            self.notice(format!("Thiếu file Agent cho: {}", missing.join(", ")));
+            self.notice(l!("Thiếu file Agent cho: {}", "Missing Agent file for: {}", missing.join(", ")));
         }
         Ok(n)
     }
@@ -510,7 +547,8 @@ impl Hub {
         let sock = match tokio::net::UdpSocket::bind(("0.0.0.0", DISCOVER_PORT)).await {
             Ok(s) => s,
             Err(e) => {
-                let msg = format!("Không mở được cổng UDP {DISCOVER_PORT} ({e}). Có thể đang mở hai Console?");
+                let msg = l!("Không mở được cổng UDP {DISCOVER_PORT} ({e}). Có thể đang mở hai Console?",
+                             "Cannot open UDP port {DISCOVER_PORT} ({e}). Is LabControl already running?");
                 *self.listen_error.write().unwrap() = msg.clone();
                 self.notice(msg);
                 return;
@@ -539,7 +577,8 @@ impl Hub {
         let l = match tokio::net::TcpListener::bind(("0.0.0.0", TEACHER_PORT)).await {
             Ok(l) => l,
             Err(e) => {
-                let msg = format!("Không mở được cổng {TEACHER_PORT} ({e}). Có thể đang mở hai Console?");
+                let msg = l!("Không mở được cổng {TEACHER_PORT} ({e}). Có thể đang mở hai Console?",
+                             "Cannot open port {TEACHER_PORT} ({e}). Is LabControl already running?");
                 *self.listen_error.write().unwrap() = msg.clone();
                 self.notice(msg);
                 return;
@@ -575,7 +614,13 @@ impl Hub {
                 }).unwrap_or(false);
                 if let Some(i) = e.info.filter(|_| !other_room) {
                     let reason = if e.reason.contains("chưa ghép") && !s.accept_new {
-                        "máy chưa ghép (đang tắt nhận máy mới)".to_string()
+                        l!("máy chưa ghép (đang tắt nhận máy mới)", "not paired (new computers are not accepted)")
+                    } else if en() && e.reason.contains("sai mật khẩu") {
+                        "wrong room password".to_string()
+                    } else if en() && e.reason.contains("chưa có mật khẩu") {
+                        "the student computer has no room password".to_string()
+                    } else if en() && e.reason.contains("chưa đặt mật khẩu") {
+                        "this teacher computer has no room password".to_string()
                     } else {
                         e.reason.clone()
                     };
@@ -590,7 +635,7 @@ impl Hub {
             let _ = self.app.emit("pending", self.pending());
         }
         if outcome == Outcome::Paired {
-            self.notice(format!("Đã ghép máy {} bằng mật khẩu phòng", info.name));
+            self.notice(l!("Đã ghép máy {} bằng mật khẩu phòng", "Paired {} with the room password", info.name));
         }
         let id = info.id.clone();
         {
@@ -619,6 +664,7 @@ impl Hub {
         self.emit_student(&st);
 
         // máy vừa vào lớp: áp dụng trạng thái hiện tại của lớp
+        let _ = tx.try_send((K_CTRL, Arc::new(proto::ctrl_bytes(&Ctrl::SetLang { lang: self.settings().lang }))));
         let show = self.show.lock().unwrap().as_ref().map(|s| (s.fullscreen, s.targets.read().unwrap().contains(&st.id)));
         if let Some((fs, true)) = show {
             let _ = tx.try_send((K_CTRL, Arc::new(proto::ctrl_bytes(&Ctrl::ShowStart { fullscreen: fs }))));
@@ -649,7 +695,7 @@ impl Hub {
             loop {
                 let (k, d) = match tokio::time::timeout(Duration::from_secs(45), proto::read_frame(&mut rd)).await {
                     Ok(r) => r?,
-                    Err(_) => bail!("máy học sinh không trả lời"),
+                    Err(_) => bail!("{}", l!("máy học sinh không trả lời", "the student computer stopped responding")),
                 };
                 if st.tx.lock().unwrap().as_ref().map(|(c, _)| *c) != Some(conn) {
                     return Ok(()); // đã có phiên mới thay thế
@@ -716,9 +762,9 @@ impl Hub {
                         Ctrl::UpdateDone { ok, version, error } => {
                             let name = st.info.read().unwrap().name.clone();
                             if ok {
-                                let _ = self.app.emit("info", format!("{name}: đã cập nhật lên {version}, đang khởi động lại"));
+                                let _ = self.app.emit("info", l!("{name}: đã cập nhật lên {version}, đang khởi động lại", "{name}: updated to {version}, restarting"));
                             } else {
-                                self.notice(format!("{name}: cập nhật thất bại – {error}"));
+                                self.notice(l!("{name}: cập nhật thất bại – {error}", "{name}: update failed – {error}"));
                             }
                         }
                         _ => {}
@@ -891,7 +937,7 @@ impl Hub {
     pub fn assign(&self, ids: &[String], title: &str, text: &str) -> Result<Task> {
         let title = title.trim();
         if title.is_empty() {
-            bail!("Hãy đặt tên bài tập");
+            bail!("{}", l!("Hãy đặt tên bài tập", "Please give the assignment a title"));
         }
         let t = Task { id: format!("bt{}", now_ms()), title: title.into(), text: text.into(), created: now_ms(), collected: HashMap::new() };
         {
@@ -908,7 +954,7 @@ impl Hub {
     pub fn collect(&self, ids: &[String], task: &str) -> Result<usize> {
         let t = {
             let mut ts = self.tasks.lock().unwrap();
-            let t = ts.iter_mut().find(|t| t.id == task).ok_or_else(|| anyhow!("Không thấy bài tập"))?;
+            let t = ts.iter_mut().find(|t| t.id == task).ok_or_else(|| anyhow!("{}", l!("Không thấy bài tập", "Assignment not found")))?;
             for id in ids {
                 t.collected.remove(id); // thu lại thì đếm lại từ đầu (file cũ bị ghi đè)
             }
@@ -965,14 +1011,14 @@ impl Hub {
     // -------------------------------------------------------------- trắc nghiệm
     pub fn quiz_start(&self, ids: &[String], mut quiz: Quiz) -> Result<usize> {
         if quiz.questions.is_empty() {
-            bail!("Bài trắc nghiệm chưa có câu hỏi");
+            bail!("{}", l!("Bài trắc nghiệm chưa có câu hỏi", "The quiz has no questions"));
         }
         for (i, q) in quiz.questions.iter().enumerate() {
             if q.q.trim().is_empty() || q.options.len() < 2 {
-                bail!("Câu {} cần nội dung và ít nhất 2 đáp án", i + 1);
+                bail!("{}", l!("Câu {} cần nội dung và ít nhất 2 đáp án", "Question {} needs text and at least 2 answers", i + 1));
             }
             if q.answer.is_none_or(|a| a >= q.options.len()) {
-                bail!("Câu {} chưa chọn đáp án đúng", i + 1);
+                bail!("{}", l!("Câu {} chưa chọn đáp án đúng", "Question {} has no correct answer", i + 1));
             }
         }
         quiz.id = format!("tn{}", now_ms());
@@ -983,7 +1029,7 @@ impl Hub {
         }).collect::<HashMap<_, _>>();
         drop(map);
         if results.is_empty() {
-            bail!("Không có máy nào đang trực tuyến trong các máy đã chọn");
+            bail!("{}", l!("Không có máy nào đang trực tuyến trong các máy đã chọn", "None of the selected computers is online"));
         }
         let targets: Vec<String> = results.keys().cloned().collect();
         let run = QuizRun { quiz: quiz.clone(), started: now_ms(), running: true, results };
@@ -1046,14 +1092,14 @@ impl Hub {
     pub fn send_files(self: &Arc<Self>, ids: Vec<String>, paths: Vec<String>) -> Result<SendBatch> {
         let files = expand_paths(&paths)?;
         if files.is_empty() {
-            bail!("Thư mục trống, không có file nào để gửi");
+            bail!("{}", l!("Thư mục trống, không có file nào để gửi", "The folder is empty, nothing to send"));
         }
         let targets: Vec<Arc<Student>> = {
             let map = self.students.lock().unwrap();
             ids.iter().filter_map(|i| map.get(i).cloned()).filter(|s| s.online.load(Ordering::Relaxed)).collect()
         };
         if targets.is_empty() {
-            bail!("Không có máy nào đang trực tuyến trong các máy đã chọn");
+            bail!("{}", l!("Không có máy nào đang trực tuyến trong các máy đã chọn", "None of the selected computers is online"));
         }
         let batch = self.file_seq.fetch_add(1, Ordering::Relaxed);
         let bytes: u64 = files.iter().map(|f| f.2).sum();
@@ -1078,8 +1124,8 @@ impl Hub {
     }
 
     async fn send_one(&self, st: &Student, p: &Path, name: &str, fid: u64) -> Result<()> {
-        let tx = st.tx().ok_or_else(|| anyhow!("máy đã mất kết nối"))?;
-        let mut f = tokio::fs::File::open(p).await.map_err(|e| anyhow!("không mở được file: {e}"))?;
+        let tx = st.tx().ok_or_else(|| anyhow!("{}", l!("máy đã mất kết nối", "the computer disconnected")))?;
+        let mut f = tokio::fs::File::open(p).await.map_err(|e| anyhow!("{}", l!("không mở được file: {e}", "cannot open the file: {e}")))?;
         let size = f.metadata().await?.len();
         tx.send((K_CTRL, Arc::new(proto::ctrl_bytes(&Ctrl::FileBegin { id: fid, name: name.to_string(), size })))).await?;
         // đoạn 64 KB: hàng đợi mỗi máy giữ tối đa ~3 MB, gửi cho cả lớp không tốn nhiều RAM
@@ -1092,9 +1138,9 @@ impl Hub {
             let mut chunk = Vec::with_capacity(n + 8);
             chunk.extend_from_slice(&fid.to_be_bytes());
             chunk.extend_from_slice(&buf[..n]);
-            tx.send((K_FILE, Arc::new(chunk))).await.map_err(|_| anyhow!("máy đã mất kết nối"))?;
+            tx.send((K_FILE, Arc::new(chunk))).await.map_err(|_| anyhow!("{}", l!("máy đã mất kết nối", "the computer disconnected")))?;
         }
-        tx.send((K_CTRL, Arc::new(proto::ctrl_bytes(&Ctrl::FileEnd { id: fid })))).await.map_err(|_| anyhow!("máy đã mất kết nối"))?;
+        tx.send((K_CTRL, Arc::new(proto::ctrl_bytes(&Ctrl::FileEnd { id: fid })))).await.map_err(|_| anyhow!("{}", l!("máy đã mất kết nối", "the computer disconnected")))?;
         Ok(())
     }
 
@@ -1109,7 +1155,7 @@ impl Hub {
         let s = self.settings();
         std::thread::spawn(move || {
             if let Err(e) = me.show_loop(stop, targets, s.show_fps.clamp(2, 30), s.show_quality.clamp(30, 90)) {
-                me.notice(format!("Trình chiếu dừng: {e:#}"));
+                me.notice(l!("Trình chiếu dừng: {e:#}", "Presentation stopped: {e:#}"));
                 me.stop_show();
             }
         });
@@ -1178,7 +1224,7 @@ fn expand_paths(paths: &[String]) -> Result<Vec<(PathBuf, String, u64)>> {
     let mut total = 0u64;
     for p in paths {
         let p = PathBuf::from(p);
-        let meta = std::fs::metadata(&p).map_err(|e| anyhow!("Không đọc được {}: {e}", p.display()))?;
+        let meta = std::fs::metadata(&p).map_err(|e| anyhow!("{}", l!("Không đọc được {}: {e}", "Cannot read {}: {e}", p.display())))?;
         let base = p.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "file".into());
         if meta.is_file() {
             total += meta.len();
@@ -1201,13 +1247,13 @@ fn expand_paths(paths: &[String]) -> Result<Vec<(PathBuf, String, u64)>> {
                     out.push((e.path(), child_rel, size));
                 }
                 if out.len() > MAX_SEND_FILES {
-                    bail!("Quá nhiều file (tối đa {MAX_SEND_FILES} file một lần)");
+                    bail!("{}", l!("Quá nhiều file (tối đa {MAX_SEND_FILES} file một lần)", "Too many files (at most {MAX_SEND_FILES} at once)"));
                 }
             }
         }
     }
     if total > MAX_SEND_BYTES {
-        bail!("Dung lượng quá lớn (tối đa 4 GB một lần)");
+        bail!("{}", l!("Dung lượng quá lớn (tối đa 4 GB một lần)", "Too large (at most 4 GB at once)"));
     }
     Ok(out)
 }
@@ -1227,16 +1273,17 @@ fn csv_cell(s: &str) -> String {
 
 pub fn quiz_csv(q: &QuizRun) -> String {
     let n = q.quiz.questions.len();
-    let mut out = String::from("\u{feff}Máy,Học sinh,Đã nộp,Số câu đúng,Điểm (thang 10)");
+    let mut out = String::from(if en() { "\u{feff}Computer,Student,Handed in,Correct,Score (out of 10)" }
+                               else { "\u{feff}Máy,Học sinh,Đã nộp,Số câu đúng,Điểm (thang 10)" });
     for i in 0..n {
-        out.push_str(&format!(",Câu {}", i + 1));
+        out.push_str(&format!(",{} {}", if en() { "Q" } else { "Câu" }, i + 1));
     }
     out.push('\n');
     let mut rows: Vec<&QuizResult> = q.results.values().collect();
     rows.sort_by(|a, b| natural(&a.name).cmp(&natural(&b.name)));
     for r in rows {
         let score = if n > 0 { r.correct as f32 * 10.0 / n as f32 } else { 0.0 };
-        out.push_str(&format!("{},{},{},{},{:.2}", csv_cell(&r.name), csv_cell(&r.user), if r.done { "Có" } else { "Chưa" }, r.correct, score));
+        out.push_str(&format!("{},{},{},{},{:.2}", csv_cell(&r.name), csv_cell(&r.user), if r.done { l!("Có", "Yes") } else { l!("Chưa", "No") }, r.correct, score));
         for a in &r.answers {
             out.push(',');
             if *a >= 0 {
@@ -1245,7 +1292,7 @@ pub fn quiz_csv(q: &QuizRun) -> String {
         }
         out.push('\n');
     }
-    out.push_str("Đáp án,,,,");
+    out.push_str(if en() { "Answer key,,,," } else { "Đáp án,,,," });
     for x in &q.quiz.questions {
         out.push(',');
         if let Some(a) = x.answer {

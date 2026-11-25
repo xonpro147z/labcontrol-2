@@ -1,3 +1,4 @@
+import { tr } from "../i18n";
 import { useEffect, useRef, useState } from "react";
 import { Lock, MessageSquare, MousePointer2, Unlock, X } from "lucide-react";
 import { api, displayName, onFrame, type Student } from "../api";
@@ -43,15 +44,15 @@ export function Viewer({ s, onClose }: { s: Student; onClose: () => void }) {
         <span className="small" style={{ color: "#94a3b8" }}>{s.info.user ? `👤 ${s.info.user} · ` : ""}{s.addr}</span>
         <div className="row right">
           <button className="btn sm" style={ctl ? { background: "#dc2626", color: "#fff", borderColor: "#dc2626" } : {}}
-                  onClick={() => { setCtl(!ctl); if (!ctl) toast("Đang điều khiển: chuột và bàn phím được chuyển sang máy học sinh"); }}>
-            <MousePointer2 size={14} />{ctl ? "Thôi điều khiển" : "Điều khiển"}</button>
-          <button className="btn sm" onClick={() => api.send([s.id], { t: "lock", message: "Hãy chú ý lên giáo viên" })}><Lock size={14} />Khóa</button>
-          <button className="btn sm" onClick={() => api.send([s.id], { t: "unlock" })}><Unlock size={14} />Mở khóa</button>
+                  onClick={() => { setCtl(!ctl); if (!ctl) toast(tr("Đang điều khiển: chuột và bàn phím được chuyển sang máy học sinh")); }}>
+            <MousePointer2 size={14} />{ctl ? tr("Thôi điều khiển") : tr("Điều khiển")}</button>
+          <button className="btn sm" onClick={() => api.send([s.id], { t: "lock", message: tr("Hãy chú ý lên giáo viên") })}><Lock size={14} />{tr("Khóa")}</button>
+          <button className="btn sm" onClick={() => api.send([s.id], { t: "unlock" })}><Unlock size={14} />{tr("Mở khóa")}</button>
           <button className="btn sm" onClick={() => {
-            const t = prompt("Tin nhắn gửi " + displayName(s));
+            const t = prompt(tr("Tin nhắn gửi ") + displayName(s));
             if (t) api.send([s.id], { t: "message", text: t });
-          }}><MessageSquare size={14} />Tin nhắn</button>
-          <button className="btn sm" onClick={onClose}><X size={14} />Đóng</button>
+          }}><MessageSquare size={14} />{tr("Tin nhắn")}</button>
+          <button className="btn sm" onClick={onClose}><X size={14} />{tr("Đóng")}</button>
         </div>
       </div>
       <div className="viewer-b" onContextMenu={(e) => ctl && e.preventDefault()}>
@@ -67,7 +68,7 @@ export function Viewer({ s, onClose }: { s: Student; onClose: () => void }) {
                                 api.input(s.id, { t: "mouse_button", button: btn(e.button), down: true }); }}
           onMouseUp={(e) => ctl && api.input(s.id, { t: "mouse_button", button: btn(e.button), down: false })}
           onWheel={(e) => ctl && api.input(s.id, { t: "wheel", dx: Math.round(e.deltaX), dy: Math.round(e.deltaY) })}
-        /> : <div style={{ color: "#94a3b8" }}>Đang nhận hình...</div>}
+        /> : <div style={{ color: "#94a3b8" }}>{tr("Đang nhận hình...")}</div>}
       </div>
     </div>
   );

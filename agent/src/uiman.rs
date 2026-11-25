@@ -41,6 +41,7 @@ fn spawn_ui(mode: &str, text: &str, fullscreen: bool, piped: bool) -> Option<Chi
     let exe = std::env::current_exe().ok()?;
     let mut c = Command::new(exe);
     c.args(["ui", mode, "--text", text]);
+    c.env("LABCONTROL_LANG", crate::i18n::code());
     if fullscreen {
         c.arg("--fullscreen");
     }
@@ -245,7 +246,7 @@ impl UiMan {
     }
 
     pub fn lock(&self, msg: &str) {
-        self.0.lock().unwrap().want_lock = Some(if msg.trim().is_empty() { "Hãy chú ý lên giáo viên".into() } else { msg.into() });
+        self.0.lock().unwrap().want_lock = Some(if msg.trim().is_empty() { l!("Hãy chú ý lên giáo viên", "Please pay attention to the teacher") } else { msg.into() });
         self.reconcile();
     }
 

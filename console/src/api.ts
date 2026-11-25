@@ -1,3 +1,4 @@
+import { tr } from "./i18n";
 /** Cầu nối tới phần Rust của Console (Tauri). */
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -19,6 +20,7 @@ export interface Settings {
   teacher_name: string; room: string; room_password: string; accept_new: boolean;
   thumb_seconds: number; thumb_width: number; show_fps: number; show_quality: number;
   web_list: string[]; app_list: string[]; run_list: string[]; dark: boolean; glass: boolean; seat_cols: number;
+  lang: string; theme_mode: string; accent: string; wallpaper: string; glass_level: number; font_scale: number; radius: string;
 }
 export interface Policy { block_web: string[]; block_tools: boolean; block_apps: string[]; exam: boolean }
 export const NO_POLICY: Policy = { block_web: [], block_tools: false, block_apps: [], exam: false };
@@ -61,7 +63,7 @@ export const api = {
   setPolicy: (policy: Policy) => invoke<number>("set_policy", { policy }),
   sendFiles: async (ids: string[], paths: string[]) => {
     const b = await invoke<SendBatch>("send_files", { ids, paths });
-    const label = paths.length === 1 ? paths[0].split(/[\\/]/).pop()! : `${paths.length} mục`;
+    const label = paths.length === 1 ? paths[0].split(/[\\/]/).pop()! : tr("{0} mục", paths.length);
     set({ transfers: [...snap.transfers, { ...b, label, done: 0, failed: 0, errors: [], started: Date.now() }] });
     return b;
   },
@@ -140,7 +142,7 @@ export async function startStore() {
   await listen<Student>("student", (e) => {
     const m = new Map(snap.students);
     const old = m.get(e.payload.id);
-    if (old && old.state !== e.payload.state) log(`${e.payload.info.name} ${e.payload.state === "online" ? "đã vào lớp" : "đã thoát"}`);
+    if (old && old.state !== e.payload.state) log(`${e.payload.info.name} ${e.payload.state === "online" ? tr("đã vào lớp") : tr("đã thoát")}`);
     m.set(e.payload.id, e.payload); set({ students: m });
   });
   await listen<string>("student_removed", (e) => {
@@ -168,10 +170,10 @@ export async function startStore() {
       t.failed++;
       const who = snap.students.get(p.student)?.info.name ?? p.student;
       t.errors = [...t.errors, { student: who, name: p.name, error: p.error }].slice(-50);
-      log(`Gửi ${p.name} tới ${who} thất bại: ${p.error}`, "warn");
+      log(tr("Gửi {0} tới {1} thất bại: {2}", p.name, who, p.error), "warn");
     }
     const list = [...snap.transfers]; list[i] = t;
-    if (t.done + t.failed >= t.total) log(`Đã gửi “${t.label}” tới ${t.machines} máy: ${t.done}/${t.total} file thành công`);
+    if (t.done + t.failed >= t.total) log(tr("Đã gửi “{0}” tới {1} máy: {2}/{3} file thành công", t.label, t.machines, t.done, t.total));
     set({ transfers: list });
   });
   await listen<string>("notice", (e) => { log(e.payload, "warn"); notices.forEach((f) => f(e.payload)); });
@@ -185,7 +187,7 @@ export async function startStore() {
   await listen<{ task: string; student: string; name: string; done: boolean; files: number; error?: string }>("collect", (e) => {
     const p = e.payload;
     const c = { ...snap.collects, [p.task]: { ...(snap.collects[p.task] || {}), [p.student]: { files: p.files, done: p.done, error: p.error } } };
-    if (p.done) log(p.error ? `${p.name}: không nộp được bài (${p.error})` : `${p.name} đã nộp ${p.files} file`, p.error ? "warn" : "info");
+    if (p.done) log(p.error ? tr("{0}: không nộp được bài ({1})", p.name, p.error) : tr("{0} đã nộp {1} file", p.name, p.files), p.error ? "warn" : "info");
     set({ collects: c });
   });
   await reload();

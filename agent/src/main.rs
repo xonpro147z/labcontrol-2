@@ -13,6 +13,8 @@
 
 mod config;
 mod helper;
+#[macro_use]
+mod i18n;
 mod input;
 mod link;
 mod policy;
@@ -97,6 +99,7 @@ fn main() {
 }
 
 fn real_main(cli: Cli) -> Result<()> {
+    i18n::init();
     match cli.cmd.unwrap_or(Cmd::Run) {
         Cmd::Ui { mode, text, fullscreen } => {
             lc_core::capture::init_dpi();
@@ -172,7 +175,7 @@ fn run() -> Result<()> {
     let guard = policy::Guard::default();
     let ob = outbox.clone();
     guard.start(move |name| {
-        let _ = ob.send(Ctrl::Notice { text: format!("Đã chặn {name}") });
+        let _ = ob.send(Ctrl::Notice { text: l!("Đã chặn {name}", "Blocked {name}") });
     });
     // chính sách hết hạn thì tắt dải "đang thi"
     {

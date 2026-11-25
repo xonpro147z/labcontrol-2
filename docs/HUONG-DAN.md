@@ -183,6 +183,7 @@ Ghi lại trong buổi học:
 | Mục | Ý nghĩa |
 |---|---|
 | Tên giáo viên, tên phòng | **Nhiều phòng máy chung một mạng thì mỗi phòng phải đặt tên phòng riêng** trên máy giáo viên và khi cài máy học sinh (ví dụ `P.Tin1`, `P.Tin2`). Máy học sinh có tên phòng chỉ vào lớp của máy giáo viên cùng tên phòng. Không phân biệt hoa thường, khoảng trắng. |
+| Giao diện & ngôn ngữ | Tiếng Việt / English (máy học sinh đổi theo), chế độ sáng/tối/theo hệ thống, màu nhấn, hình nền, độ kính trong suốt, cỡ giao diện, bo góc. Chỉnh là thấy ngay; bấm Hủy để trả lại như cũ. |
 | Mật khẩu phòng | Đổi mật khẩu thì máy đang trực tuyến được cập nhật luôn. Máy đã ghép vẫn vào lớp bình thường. |
 | Nhận máy mới | Tắt khi đã đủ máy, để không ai ghép thêm máy lạ vào lớp |
 | Cài máy học sinh | Lệnh cài sẵn mật khẩu phòng để chép |

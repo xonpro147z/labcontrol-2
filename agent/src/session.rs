@@ -250,11 +250,11 @@ async fn handle(
         Ctrl::UpdateBegin { id, version, platform, size, sha256, ts, sig } => {
             let msg = auth::update_message(&platform, &version, &sha256);
             let err = if platform != std::env::consts::OS {
-                Some(format!("gói dành cho {platform}"))
+                Some(l!("gói dành cho {platform}", "package is for {platform}"))
             } else if !auth::verify_policy(&[teacher.to_string()], &msg, ts, &sig) {
-                Some("chữ ký không hợp lệ".to_string())
+                Some(l!("chữ ký không hợp lệ", "invalid signature"))
             } else if size > 200 << 20 {
-                Some("gói quá lớn".to_string())
+                Some(l!("gói quá lớn", "package too large"))
             } else {
                 None
             };
@@ -276,7 +276,7 @@ async fn handle(
             let _ = tokio::fs::remove_file(&f.tmp).await;
             let r: Result<()> = async {
                 if f.left != 0 || auth::sha256_hex(&data) != m.sha256 {
-                    bail!("file nhận thiếu hoặc hỏng");
+                    bail!("{}", l!("file nhận thiếu hoặc hỏng", "the received file is incomplete or damaged"));
                 }
                 use base64::Engine;
                 let req = json!({"op": "update", "platform": m.platform, "version": m.version, "sha256": m.sha256,
@@ -308,7 +308,7 @@ async fn handle(
                     }
                 } else {
                     let _ = tokio::fs::remove_file(&f.tmp).await;
-                    (false, "file nhận thiếu dữ liệu".into())
+                    (false, l!("file nhận thiếu dữ liệu", "the received file is incomplete"))
                 };
                 if ok {
                     announce_files(sh);
@@ -320,7 +320,7 @@ async fn handle(
         Ctrl::SetPolicy { policy, ts, sig } => {
             let pj = serde_json::to_string(&policy)?;
             if !auth::verify_policy(&[teacher.to_string()], &pj, ts, &sig) {
-                send_ctrl(tx, &Ctrl::Notice { text: "Chữ ký chính sách không hợp lệ".into() });
+                send_ctrl(tx, &Ctrl::Notice { text: l!("Chữ ký chính sách không hợp lệ", "Invalid policy signature") });
                 return Ok(());
             }
             // chặn web: nhờ Helper (quyền cao) sửa file hosts
@@ -328,7 +328,7 @@ async fn handle(
                 Ok(_) => true,
                 Err(e) => {
                     if !policy.block_web.is_empty() {
-                        send_ctrl(tx, &Ctrl::Notice { text: format!("Không chặn được web: {e:#}") });
+                        send_ctrl(tx, &Ctrl::Notice { text: l!("Không chặn được web: {e:#}", "Cannot block websites: {e:#}") });
                     }
                     false
                 }
@@ -342,7 +342,7 @@ async fn handle(
                 (name, k)
             }).await;
             if let Ok((name, k)) = n {
-                send_ctrl(tx, &Ctrl::Notice { text: if k > 0 { format!("Đã đóng {name}") } else { format!("Không thấy {name} đang chạy") } });
+                send_ctrl(tx, &Ctrl::Notice { text: if k > 0 { l!("Đã đóng {name}", "Closed {name}") } else { l!("Không thấy {name} đang chạy", "{name} is not running") } });
             }
         }
         Ctrl::RunApp { cmd } => {
@@ -351,7 +351,7 @@ async fn handle(
                 move || sys::run_app(&cmd)
             }).await;
             if let Ok(Err(e)) = r {
-                send_ctrl(tx, &Ctrl::Notice { text: format!("Không mở được {cmd}: {e}") });
+                send_ctrl(tx, &Ctrl::Notice { text: l!("Không mở được {cmd}: {e}", "Cannot open {cmd}: {e}") });
             }
         }
         // ----------------------------------------------------------- bài tập
@@ -359,13 +359,13 @@ async fn handle(
             match tasks::assign(&task, &title, &text) {
                 Ok(_) => {
                     let msg = if text.trim().is_empty() {
-                        format!("Bài tập mới: {title}\n\nLưu bài làm vào thư mục BaiLam trên màn hình nền.")
+                        l!("Bài tập mới: {title}\n\nLưu bài làm vào thư mục BaiLam trên màn hình nền.", "New assignment: {title}\n\nSave your work in the BaiLam folder on the desktop.")
                     } else {
                         format!("{title}\n\n{text}")
                     };
                     sh.ui.message(&msg.chars().take(2000).collect::<String>());
                 }
-                Err(e) => send_ctrl(tx, &Ctrl::Notice { text: format!("Không tạo được thư mục bài làm: {e}") }),
+                Err(e) => send_ctrl(tx, &Ctrl::Notice { text: l!("Không tạo được thư mục bài làm: {e}", "Cannot create the work folder: {e}") }),
             }
         }
         Ctrl::Collect { task, title } => {
@@ -386,12 +386,13 @@ async fn handle(
             sh.ui.quiz_start(quiz)
         }
         Ctrl::QuizStop { id } => sh.ui.quiz_stop(&id),
+        Ctrl::SetLang { lang } => crate::i18n::set(&lang),
         // ----------------------------------------------------------- quản trị
         Ctrl::SetPairPassword { password, ts, sig } => {
             let r = helper::machine(json!({"op": "set_password", "password": password, "ts": ts, "sig": sig})).await;
             send_ctrl(tx, &Ctrl::Notice { text: match r {
-                Ok(_) => "Đã đổi mật khẩu phòng".into(),
-                Err(e) => format!("Không đổi được mật khẩu phòng: {e:#}"),
+                Ok(_) => l!("Đã đổi mật khẩu phòng", "Room password changed"),
+                Err(e) => l!("Không đổi được mật khẩu phòng: {e:#}", "Cannot change the room password: {e:#}"),
             } });
         }
         _ => {}
@@ -420,7 +421,7 @@ fn announce_files(sh: &Arc<Shared>) {
             std::mem::take(&mut s.1)
         };
         let dir = receive_dir();
-        sh.ui.message(&format!("Giáo viên vừa gửi {n} file cho em.\n\nFile nằm trong thư mục TuGiaoVien trên màn hình nền."));
+        sh.ui.message(&l!("Giáo viên vừa gửi {n} file cho em.\n\nFile nằm trong thư mục TuGiaoVien trên màn hình nền.", "The teacher just sent you {n} files.\n\nThey are in the TuGiaoVien folder on your desktop."));
         if !sh.guard.current().exam {
             let _ = open::that_detached(&dir);
         }
@@ -430,7 +431,7 @@ fn announce_files(sh: &Arc<Shared>) {
 async fn collect(tx: &mpsc::Sender<(u8, Vec<u8>)>, task: &str, title: &str) -> Result<u32> {
     let dir = tasks::task_dir(task, title);
     if !dir.exists() {
-        bail!("chưa có thư mục bài làm");
+        bail!("{}", l!("chưa có thư mục bài làm", "no work folder yet"));
     }
     let list = tokio::task::spawn_blocking(move || tasks::collect_list(&dir)).await??;
     let mut n = 0;

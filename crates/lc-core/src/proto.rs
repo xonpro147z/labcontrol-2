@@ -151,6 +151,8 @@ pub enum Ctrl {
     /// Cập nhật Agent: dữ liệu đi bằng K_FILE cùng id. `sig` ký trên auth::update_message(platform, version, sha256).
     UpdateBegin { id: u64, version: String, platform: String, size: u64, sha256: String, ts: u64, sig: String },
     UpdateEnd { id: u64 },
+    /// Ngôn ngữ hiển thị trên máy học sinh ("vi" | "en")
+    SetLang { lang: String },
     /// Mở ứng dụng trên máy học sinh (tên chương trình, đường dẫn hoặc dòng lệnh)
     RunApp { cmd: String },
     /// Giao bài: tạo thư mục bài làm, hiện đề bài

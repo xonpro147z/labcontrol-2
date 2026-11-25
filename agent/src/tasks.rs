@@ -76,7 +76,7 @@ pub fn assign(task: &str, title: &str, text: &str) -> Result<PathBuf> {
     body.push_str(title);
     body.push_str("\r\n\r\n");
     body.push_str(&text.replace("\r\n", "\n").replace('\n', "\r\n"));
-    body.push_str("\r\n\r\n-- Lưu bài làm của em vào thư mục này. Giáo viên sẽ thu bài từ đây. --\r\n");
+    body.push_str(&l!("\r\n\r\n-- Lưu bài làm của em vào thư mục này. Giáo viên sẽ thu bài từ đây. --\r\n", "\r\n\r\n-- Save your work in this folder. The teacher collects it from here. --\r\n"));
     std::fs::write(dir.join(DE_BAI), body)?;
     let mut m = load_index();
     m.insert(task.to_string(), dir.clone());

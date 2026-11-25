@@ -115,6 +115,7 @@ async fn main() -> anyhow::Result<()> {
             "close" => Ctrl::CloseApp { name: arg.into() },
             "run" => Ctrl::RunApp { cmd: arg.into() },
             "showfs" => Ctrl::ShowStart { fullscreen: true },
+            "lang" => Ctrl::SetLang { lang: arg.into() },
             "showstop" => Ctrl::ShowStop,
             "sendf" => {
                 // gửi file cục bộ dưới tên "ThuMuc/<tên file>"

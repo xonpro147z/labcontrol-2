@@ -2,6 +2,19 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.2.0] – 2026-11-25
+
+### Thêm
+- **Tiếng Anh** cho toàn bộ phần mềm: giao diện máy giáo viên, thông báo, file kết quả trắc nghiệm (CSV) và các cửa sổ trên
+  máy học sinh (màn hình khóa, tin nhắn, bài trắc nghiệm, dải chế độ thi, thông báo nhận file). Máy học sinh tự đổi theo
+  ngôn ngữ giáo viên chọn. Thêm ngôn ngữ mới chỉ cần một bảng dịch (`console/src/i18n.ts`, `agent/src/i18n.rs`).
+- **Giao diện tùy biến** (Cài đặt › Giao diện & ngôn ngữ), xem trước ngay khi chỉnh, bấm Hủy để trả lại:
+  - chế độ Sáng / Tối / Theo hệ thống;
+  - màu nhấn: 9 màu có sẵn hoặc tự chọn màu bất kỳ (chữ trên nút tự đổi đen/trắng cho dễ đọc);
+  - 6 hình nền chuyển màu (Cực quang, Đại dương, Hoàng hôn, Rừng, Oải hương, Trơn);
+  - độ kính trong suốt 0–100% (0 = tắt hẳn cho máy yếu);
+  - cỡ giao diện 90–125%; bo góc Ít / Vừa / Nhiều; nút Khôi phục mặc định.
+
 ## [3.1.3] – 2026-11-25
 
 ### Sửa – nhiều phòng máy chung một mạng

@@ -1,3 +1,4 @@
+import { tr } from "../i18n";
 import { useEffect } from "react";
 import { CheckCircle2, FileUp, X } from "lucide-react";
 import { dismissTransfer, useStore, type Transfer } from "../api";
@@ -25,14 +26,14 @@ function Item({ t }: { t: Transfer }) {
         {finished && !t.failed ? <CheckCircle2 size={18} color="var(--online)" /> : <FileUp size={18} />}
         <div className="grow" style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.label}</div>
-          <div className="small faint">{t.files} file · {size(t.bytes)} · {t.machines} máy</div>
+          <div className="small faint">{t.files} file · {size(t.bytes)} · {t.machines}{" "}{tr("máy")}</div>
         </div>
-        <button className="btn ghost sm" onClick={() => dismissTransfer(t.batch)} aria-label="Ẩn"><X size={14} /></button>
+        <button className="btn ghost sm" onClick={() => dismissTransfer(t.batch)} aria-label={tr("Ẩn")}><X size={14} /></button>
       </div>
       <div className="prog"><i style={{ width: `${pct}%`, background: t.failed ? "var(--warn)" : undefined }} /></div>
       <div className="small">
-        {finished ? (t.failed ? `Xong: ${t.done} thành công, ${t.failed} lỗi` : "Đã gửi xong – học sinh nhận ở thư mục TuGiaoVien")
-          : `Đang gửi... ${t.done + t.failed}/${t.total}`}
+        {finished ? (t.failed ? tr("Xong: {0} thành công, {1} lỗi", t.done, t.failed) : tr("Đã gửi xong – học sinh nhận ở thư mục TuGiaoVien"))
+          : tr("Đang gửi... {0}/{1}", t.done + t.failed, t.total)}
       </div>
       {t.errors.length > 0 && <div className="errs">{t.errors.map((e, i) => <div key={i}>{e.student}: {e.name} – {e.error}</div>)}</div>}
     </div>

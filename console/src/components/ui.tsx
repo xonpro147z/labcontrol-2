@@ -1,3 +1,4 @@
+import { tr } from "../i18n";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AlertTriangle, CheckCircle2, X } from "lucide-react";
 
@@ -14,7 +15,7 @@ export function Modal({ title, onClose, children, footer, wide, bare }: {
     <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`modal ${wide ? "wide" : ""}`} role="dialog" aria-modal>
         <div className="modal-h"><h2>{title}</h2>
-          <button className="btn ghost sm right" onClick={onClose} aria-label="Đóng"><X size={16} /></button></div>
+          <button className="btn ghost sm right" onClick={onClose} aria-label={tr("Đóng")}><X size={16} /></button></div>
         {bare ? children : <div className="modal-b">{children}</div>}
         {footer && <div className="modal-f">{footer}</div>}
       </div>
@@ -22,7 +23,7 @@ export function Modal({ title, onClose, children, footer, wide, bare }: {
   );
 }
 
-export function Confirm({ title, message, danger, confirmText = "Đồng ý", onConfirm, onClose }: {
+export function Confirm({ title, message, danger, confirmText = tr("Đồng ý"), onConfirm, onClose }: {
   title: string; message: ReactNode; danger?: boolean; confirmText?: string;
   onConfirm: () => Promise<void> | void; onClose: () => void;
 }) {
@@ -30,7 +31,7 @@ export function Confirm({ title, message, danger, confirmText = "Đồng ý", on
   const [err, setErr] = useState("");
   return (
     <Modal title={title} onClose={onClose} footer={<>
-      <button className="btn" onClick={onClose}>Hủy</button>
+      <button className="btn" onClick={onClose}>{tr("Hủy")}</button>
       <button className={`btn ${danger ? "solid-danger" : "primary"}`} disabled={busy} onClick={async () => {
         setBusy(true); setErr("");
         try { await onConfirm(); onClose(); } catch (e) { setErr(errText(e)); setBusy(false); }
