@@ -187,6 +187,7 @@ async fn handle(
                 locked: sh.ui.locked(), showing: sh.ui.showing(), viewed: sh.ui.viewed(),
                 exam: pol.exam, web_blocked: sh.guard.web_blocked(), tools_blocked: pol.block_tools || pol.exam,
                 helper: helper::has_helper().await,
+                muted: pol.mute,
             };
             tx.send((K_CTRL, proto::ctrl_bytes(&Ctrl::Status { status: st }))).await?;
         }

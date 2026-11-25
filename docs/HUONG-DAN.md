@@ -108,6 +108,7 @@ Bố cục: thanh biểu tượng bên trái, **thanh công cụ** phía trên, 
 | Chặn ứng dụng ▾ | Chặn công cụ hệ thống (cmd, PowerShell, Task Manager, Registry...) và/hoặc ứng dụng trong danh sách: mở lên là bị đóng ngay |
 | Đóng ứng dụng | Đóng một ứng dụng đang mở. Gợi ý các ứng dụng học sinh đang dùng. |
 | Chế độ thi | Hiện dải "Đang trong giờ kiểm tra"; đóng trình duyệt, ứng dụng nhắn tin, phần mềm điều khiển từ xa và công cụ hệ thống |
+| Tắt tiếng | Tắt loa máy học sinh; học sinh tự bật lại sẽ bị tắt lại ngay. Bấm lần nữa để bật tiếng. Linux cần `pactl` hoặc `amixer` |
 | Nguồn ▾ | Tắt máy / Khởi động lại / Đăng xuất |
 | Bỏ giới hạn | Bỏ mọi chặn web, chặn ứng dụng, chế độ thi |
 

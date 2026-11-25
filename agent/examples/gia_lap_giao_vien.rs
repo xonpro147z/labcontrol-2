@@ -112,6 +112,7 @@ async fn main() -> anyhow::Result<()> {
             "exam" => pol(Policy { exam: true, ..Default::default() }, &key),
             "web" => pol(Policy { block_web: vec![arg.into()], ..Default::default() }, &key),
             "clear" => pol(Policy::default(), &key),
+            "mute" => pol(Policy { mute: true, ..Default::default() }, &key),
             "close" => Ctrl::CloseApp { name: arg.into() },
             "run" => Ctrl::RunApp { cmd: arg.into() },
             "showfs" => Ctrl::ShowStart { fullscreen: true },

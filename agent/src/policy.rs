@@ -101,6 +101,35 @@ impl Guard {
         v
     }
 
+    /// Chạy nền: giữ máy ở trạng thái tắt tiếng khi giáo viên yêu cầu; bỏ lệnh thì bật lại tiếng (chỉ khi
+    /// chính LabControl đã tắt).
+    pub fn start_audio(&self, notify: impl Fn(String) + Send + 'static) {
+        let me = self.clone();
+        std::thread::spawn(move || {
+            let mut we_muted = false;
+            let mut warned = false;
+            loop {
+                std::thread::sleep(Duration::from_millis(1500));
+                if me.current().mute {
+                    if crate::audio::is_muted() != Some(true) {
+                        match crate::audio::set_mute(true) {
+                            Ok(()) => we_muted = true,
+                            Err(e) if !warned => {
+                                warned = true;
+                                notify(format!("{e:#}"));
+                            }
+                            Err(_) => {}
+                        }
+                    }
+                } else if we_muted {
+                    let _ = crate::audio::set_mute(false);
+                    we_muted = false;
+                    warned = false;
+                }
+            }
+        });
+    }
+
     /// Chạy nền: mỗi giây đóng các tiến trình bị cấm. `notify` nhận tên tiến trình vừa đóng.
     pub fn start(&self, notify: impl Fn(String) + Send + 'static) {
         let me = self.clone();

@@ -2,6 +2,14 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.2.2] – 2026-11-25
+### Thêm
+- Nút **Tắt tiếng** trên thanh công cụ: tắt loa máy học sinh (cả lớp, máy đang chọn hoặc từng máy).
+  Học sinh tự bật lại sẽ bị tắt lại sau khoảng 1,5 giây; bỏ giới hạn thì tiếng trở lại.
+- Ô máy hiện biểu tượng loa gạch khi máy đang bị tắt tiếng.
+- Windows dùng Core Audio; Linux dùng `pactl` (PulseAudio/PipeWire) hoặc `amixer`.
+- Cần cập nhật máy học sinh (nút **Cập nhật**) để dùng tính năng này.
+
 ## [3.2.1] – 2026-11-25
 
 ### Thêm – giới hạn riêng từng máy

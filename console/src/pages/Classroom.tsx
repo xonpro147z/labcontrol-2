@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AppWindow, Ban, BookOpen, Cast, ChevronDown, ClipboardCheck, Eye, FileUp, Globe, KeyRound, LayoutGrid, List,
   Lock, MessageSquare, MonitorOff, MousePointer2, Pencil, Power, Search, ShieldAlert, ShieldCheck, ShieldOff, Trash2,
-  Unlock, UserX, Wand2, WifiOff, X, Armchair, Rocket, Download, RefreshCw, FolderUp, UserCog,
+  Unlock, UserX, Wand2, WifiOff, X, Armchair, Rocket, Download, RefreshCw, FolderUp, UserCog, VolumeX, Volume2,
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -143,6 +143,7 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
         {policy.exam && <span className="chip warn"><ShieldAlert size={13} />{tr("Chế độ thi")}</span>}
         {policy.block_web.length > 0 && <span className="chip warn"><Globe size={13} />{tr("Chặn {0} trang web", policy.block_web.length)}</span>}
         {(policy.block_tools || policy.block_apps.length > 0) && !policy.exam && <span className="chip warn"><AppWindow size={13} />{tr("Chặn ứng dụng")}</span>}
+        {policy.mute && <span className="chip warn"><VolumeX size={13} />{tr("Đã tắt tiếng")}</span>}
         {nOverride > 0 && <span className="chip" title={tr("Chuột phải vào máy › Dùng giới hạn chung của lớp")}><UserCog size={13} />{tr("{0} máy có giới hạn riêng", nOverride)}</span>}
         {outdated.length > 0 && <button className="chip warn" title={tr("Máy giáo viên đang dùng bản {0}", st.version)} onClick={() => askUpdate(outdated)}>
           <RefreshCw size={13} />{outdated.length}{" "}{tr("máy dùng bản cũ · Cập nhật")}</button>}
@@ -170,6 +171,9 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
           ok: curPol.exam ? tr("Kết thúc") : tr("Bật chế độ thi"),
           run: () => setPol({ ...curPol, exam: !curPol.exam }, curPol.exam ? tr("Đã kết thúc chế độ thi") : tr("Đã bật chế độ thi")),
         }), { on: curPol.exam, tone: "warn" })}
+        {tool(curPol.mute ? <VolumeX size={18} /> : <Volume2 size={18} />, curPol.mute ? tr("Bật tiếng") : tr("Tắt tiếng"),
+              () => setPol({ ...curPol, mute: !curPol.mute }, curPol.mute ? tr("Đã bật lại tiếng") : tr("Đã tắt tiếng (học sinh không bật lại được)")),
+              { on: !!curPol.mute, tone: "warn" })}
         <div className="sep" />
         {tool(<Power size={18} />, tr("Nguồn"), openMenu("power"), { caret: true })}
         {policyOn && tool(<ShieldOff size={18} />, tr("Bỏ giới hạn"), () => setPol(NO_POLICY, scoped ? tr("Đã bỏ giới hạn cho {0} máy", chosen.length) : tr("Đã bỏ mọi giới hạn")))}
@@ -334,6 +338,7 @@ function Flags({ s }: { s: Student }) {
     {t.viewed && <span className="flag err" title={tr("Đang được xem")}><Eye size={12} /></span>}
     {t.showing && <span className="flag pri" title={tr("Đang xem trình chiếu")}><Cast size={12} /></span>}
     {t.exam && <span className="flag warn" title={tr("Chế độ thi")}><ShieldAlert size={12} /></span>}
+    {t.muted && <span className="flag warn" title={tr("Đã tắt tiếng")}><VolumeX size={12} /></span>}
     {t.web_blocked && !t.exam && <span className="flag warn" title={tr("Đang chặn web")}><Ban size={12} /></span>}
     {overrides[s.id] && <span className="flag pri" title={tr("Giới hạn riêng cho máy này")}><UserCog size={12} /></span>}
     {!t.helper && (overrides[s.id] ?? policy).block_web.length > 0 && <span className="flag" title={tr("Máy chưa cài dịch vụ Helper: không chặn web được")}><ShieldOff size={12} /></span>}

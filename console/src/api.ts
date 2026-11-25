@@ -9,7 +9,7 @@ export interface AgentInfo {
 }
 export interface Status {
   user: string; app: string; title: string; locked: boolean; showing: boolean; viewed: boolean;
-  exam: boolean; web_blocked: boolean; tools_blocked: boolean; helper: boolean;
+  exam: boolean; web_blocked: boolean; tools_blocked: boolean; helper: boolean; muted?: boolean;
 }
 export interface Student {
   id: string; addr: string; info: AgentInfo; state: "online" | "offline"; status: Status | null;
@@ -22,8 +22,8 @@ export interface Settings {
   web_list: string[]; app_list: string[]; run_list: string[]; dark: boolean; glass: boolean; seat_cols: number;
   lang: string; theme_mode: string; accent: string; wallpaper: string; glass_level: number; font_scale: number; radius: string;
 }
-export interface Policy { block_web: string[]; block_tools: boolean; block_apps: string[]; exam: boolean }
-export const NO_POLICY: Policy = { block_web: [], block_tools: false, block_apps: [], exam: false };
+export interface Policy { block_web: string[]; block_tools: boolean; block_apps: string[]; exam: boolean; mute?: boolean }
+export const NO_POLICY: Policy = { block_web: [], block_tools: false, block_apps: [], exam: false, mute: false };
 export interface Task { id: string; title: string; text: string; created: number; collected: Record<string, number> }
 export interface QuizQuestion { q: string; options: string[]; answer?: number | null }
 export interface Quiz { id: string; title: string; minutes: number; questions: QuizQuestion[] }

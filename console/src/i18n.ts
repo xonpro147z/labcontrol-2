@@ -21,6 +21,11 @@ export function tr(key: string, ...args: unknown[]): string {
 }
 
 const EN: Record<string, string> = {
+  "Bật tiếng": "Unmute",
+  "Tắt tiếng": "Mute",
+  "Đã bật lại tiếng": "Sound back on",
+  "Đã tắt tiếng (học sinh không bật lại được)": "Muted (students cannot turn sound back on)",
+  "Đã tắt tiếng": "Muted",
   "{0} máy có giới hạn riêng": "{0} computers with their own restrictions",
   "Chuột phải vào máy › Dùng giới hạn chung của lớp": "Right-click a computer › Use the class restrictions",
   "Bật chế độ thi cho {0} máy đã chọn?": "Turn on exam mode for {0} selected computers?",

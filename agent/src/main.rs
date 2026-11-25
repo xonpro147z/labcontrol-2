@@ -11,6 +11,7 @@
 //! Agent không ghi phím và không lưu ảnh màn hình.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
+mod audio;
 mod config;
 mod helper;
 #[macro_use]
@@ -176,6 +177,10 @@ fn run() -> Result<()> {
     let ob = outbox.clone();
     guard.start(move |name| {
         let _ = ob.send(Ctrl::Notice { text: l!("Đã chặn {name}", "Blocked {name}") });
+    });
+    let ob = outbox.clone();
+    guard.start_audio(move |e| {
+        let _ = ob.send(Ctrl::Notice { text: l!("Không tắt được tiếng: {e}", "Cannot mute: {e}") });
     });
     // chính sách hết hạn thì tắt dải "đang thi"
     {

@@ -49,6 +49,9 @@ pub struct Status {
     /// Có Helper (dịch vụ quyền cao) để chặn web không
     #[serde(default)]
     pub helper: bool,
+    /// Đang bị tắt tiếng theo lệnh giáo viên
+    #[serde(default)]
+    pub muted: bool,
 }
 
 /// Chính sách giới hạn trên máy học sinh.
@@ -66,6 +69,9 @@ pub struct Policy {
     /// Chế độ thi: chặn công cụ + đóng trình duyệt, ứng dụng nhắn tin; hiện dải "Đang thi"
     #[serde(default)]
     pub exam: bool,
+    /// Tắt tiếng loa (học sinh bật lại sẽ bị tắt ngay). Không ghi ra khi `false` để chữ ký khớp với Agent cũ.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub mute: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
