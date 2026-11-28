@@ -2,6 +2,14 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.3.1] – 2026-11-28
+### Sửa lỗi
+- Sau khi cập nhật máy học sinh lên 3.3.0, các máy liên tục mất kết nối rồi nối lại (ảnh thu nhỏ chập chờn, số máy trực tuyến nhảy lung tung).
+  Nguyên nhân: máy giáo viên gửi ảnh/video nền màn hình khóa cho cả phòng cùng một lúc, lệnh hỏi trạng thái bị kẹt sau dữ liệu lớn
+  nên máy giáo viên tưởng máy học sinh không trả lời và ngắt kết nối, rồi gửi lại từ đầu.
+  Nay chỉ gửi cho 3 máy một lúc, chia gói nhỏ và luôn ưu tiên lệnh thường.
+- Video nền được thu nhỏ còn 960×540 và giới hạn 20 MB để gửi nhanh qua mạng LAN.
+
 ## [3.3.0] – 2026-11-28
 ### Thay đổi
 - **Khóa máy bấm là khóa ngay**, không hiện hộp gõ lời nhắn. Các máy đang chọn (hoặc cả lớp) đã khóa thì nút đổi thành **Mở khóa**.

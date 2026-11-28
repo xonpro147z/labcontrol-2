@@ -247,6 +247,8 @@ pub struct Hub {
     listen_error: RwLock<String>,
     res_dir: Option<PathBuf>,
     latest: RwLock<Option<UpdateInfo>>,
+    /// Số máy được gửi ảnh/video nền màn hình khóa cùng lúc (tránh nghẽn mạng LAN)
+    media_slots: Arc<tokio::sync::Semaphore>,
 }
 
 fn read_json<T: for<'de> Deserialize<'de> + Default>(p: &Path) -> T {
@@ -317,6 +319,7 @@ impl Hub {
             pending: Mutex::new(HashMap::new()), show: Mutex::new(None), policy: RwLock::new(Policy::default()), overrides: RwLock::new(HashMap::new()),
             tasks: Mutex::new(tasks), quiz: Mutex::new(None), file_seq: AtomicU64::new(1), file_meta: Mutex::new(HashMap::new()), conn_seq: AtomicU64::new(1),
             listen_error: RwLock::new(String::new()), res_dir, latest: RwLock::new(None),
+            media_slots: Arc::new(tokio::sync::Semaphore::new(3)),
         }))
     }
 
@@ -512,7 +515,8 @@ impl Hub {
             bail!("{}", l!("Khung hình không phải JPEG hợp lệ", "A frame is not a valid JPEG"));
         }
         let pack = lc_core::lockmedia::pack(if raw.len() > 1 { fps.clamp(1, 30) } else { 0 }, &raw);
-        if pack.len() as u64 > lc_core::lockmedia::MAX_SIZE {
+        // gửi cho cả phòng máy qua mạng LAN: giữ gói nhỏ
+        if pack.len() as u64 > 24 << 20 {
             bail!("{}", l!("Video quá lớn, hãy chọn đoạn ngắn hơn", "The video is too large, choose a shorter clip"));
         }
         std::fs::write(self.lock_media_path(), &pack)?;
@@ -571,11 +575,21 @@ impl Hub {
         let Some(tx) = st.tx() else { return };
         let id = self.file_seq.fetch_add(1, Ordering::Relaxed);
         let st = st.clone();
+        let slots = self.media_slots.clone();
         tauri::async_runtime::spawn(async move {
             let r: Result<()> = async {
+                // chỉ vài máy nhận cùng lúc; mỗi gói nhỏ và luôn chừa chỗ trong hàng đợi cho lệnh thường
+                // (ảnh thu nhỏ, trạng thái), để máy học sinh không bị coi là mất kết nối
+                let _slot = slots.acquire_owned().await?;
                 let begin = Ctrl::LockMedia { id, sha256: sha, size: data.len() as u64 };
                 tx.send((K_CTRL, Arc::new(proto::ctrl_bytes(&begin)))).await?;
-                for chunk in data.chunks(256 * 1024) {
+                for chunk in data.chunks(64 * 1024) {
+                    while tx.capacity() < 40 {
+                        if tx.is_closed() {
+                            bail!("mất kết nối");
+                        }
+                        tokio::time::sleep(Duration::from_millis(25)).await;
+                    }
                     let mut c = Vec::with_capacity(chunk.len() + 8);
                     c.extend_from_slice(&id.to_be_bytes());
                     c.extend_from_slice(chunk);

@@ -177,7 +177,7 @@ function pickLook(s: Settings): Partial<Settings> {
 const DEFAULT_LOOK: Partial<Settings> = { theme_mode: "light", dark: false, accent: "#0a9d94", wallpaper: "aurora", glass: true, glass_level: 60, font_scale: 100, radius: "normal" };
 
 // ------------------------------------------------------------------ màn hình khóa
-const MAX_BYTES = 44 << 20;
+const MAX_BYTES = 20 << 20;
 
 const loadImage = (url: string) => new Promise<HTMLImageElement>((ok, bad) => {
   const im = new Image();
@@ -239,7 +239,7 @@ function LockSection({ s, up, setMedia }: { s: Settings; up: (p: Partial<Setting
       let bytes = 0;
       for (let i = 0; i < n; i++) {
         await new Promise<void>((ok) => { v.onseeked = () => ok(); v.currentTime = Math.min(i / fps, dur - 0.01); });
-        const fr = toJpeg(v, v.videoWidth, v.videoHeight, 1280, 720, 0.72);
+        const fr = toJpeg(v, v.videoWidth, v.videoHeight, 960, 540, 0.7);
         bytes += b64Bytes(fr);
         if (bytes > MAX_BYTES) throw new Error(tr("Video quá nặng: hãy giảm thời lượng hoặc số khung hình/giây."));
         frames.push(fr);
