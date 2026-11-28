@@ -121,7 +121,9 @@ Thư viện bên thứ ba: [THIRD-PARTY.md](THIRD-PARTY.md).
 
 - Liên hệ, hỗ trợ: **hngo0131@gmail.com**
 - Góp ý, báo lỗi, đề xuất tính năng: trong phần mềm chọn **Góp ý** (thanh bên trái), hoặc gửi email.
-- Ủng hộ tác giả phát triển các phiên bản sau: xem mục **Tác giả & góp ý** trong phần mềm.
+- Ủng hộ tác giả phát triển các phiên bản sau: **Vietcombank 1014552605 – NGO VAN HUNG**, hoặc quét mã VietQR (app ngân hàng hoặc MoMo):
+
+<img src="console/public/bank-qr.png" alt="VietQR Vietcombank 1014552605 – NGO VAN HUNG" width="200">
 
 Nếu bạn dùng lại hoặc phát triển tiếp LabControl, hãy giữ tên tác giả và giấy phép AGPL-3.0-or-later.
 

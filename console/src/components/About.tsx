@@ -5,10 +5,10 @@ export const SOURCE_URL = "https://github.com/xonpro147z/labcontrol-2";
 export const AUTHOR = {
   name: "Ngô Văn Hưng",
   email: "hngo0131@gmail.com",
-  /** Số điện thoại MoMo nhận ủng hộ (để trống thì ẩn mục MoMo) */
-  momo: "",
-  /** Tên chủ ví MoMo */
-  momoName: "",
-  /** Ảnh mã QR MoMo: đặt file vào console/public/momo-qr.png (không có thì ẩn) */
-  momoQr: "/momo-qr.png",
+  /** Tài khoản nhận ủng hộ (để trống `account` thì ẩn mục ủng hộ) */
+  bank: "Vietcombank",
+  account: "1014552605",
+  accountName: "NGO VAN HUNG",
+  /** Ảnh mã VietQR: console/public/bank-qr.png */
+  qr: "/bank-qr.png",
 };

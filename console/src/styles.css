@@ -336,5 +336,4 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; line-height
   background: var(--accent); color: var(--on-accent, #fff); font-weight: 700; font-size: 20px; letter-spacing: .02em; }
 .author-name { font-size: 20px; font-weight: 700; }
 .donate { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
-.donate img { width: 160px; height: 160px; object-fit: contain; border-radius: 12px; background: #fff; padding: 6px; box-shadow: 0 0 0 1px var(--line); }
-.momo { color: #a50064; }
+.donate img { width: 170px; height: auto; border-radius: 12px; background: #fff; padding: 8px; box-shadow: 0 0 0 1px var(--line); }

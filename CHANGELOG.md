@@ -5,7 +5,7 @@
 ## [3.4.1] – 2026-11-28
 ### Thêm
 - Mục **Tác giả & góp ý** (nút **Góp ý** ở thanh bên trái): tên tác giả Ngô Văn Hưng, email liên hệ hỗ trợ,
-  ô góp ý / báo lỗi / đề xuất tính năng (mở ứng dụng thư với nội dung điền sẵn), và thông tin ủng hộ tác giả qua MoMo.
+  ô góp ý / báo lỗi / đề xuất tính năng (mở ứng dụng thư với nội dung điền sẵn), và thông tin ủng hộ tác giả (mã VietQR Vietcombank).
 - Trang Giới thiệu và README ghi tên tác giả.
 
 ## [3.4.0] – 2026-11-28

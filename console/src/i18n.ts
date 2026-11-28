@@ -21,6 +21,8 @@ export function tr(key: string, ...args: unknown[]): string {
 }
 
 const EN: Record<string, string> = {
+  "Quét mã bằng app ngân hàng hoặc MoMo, hoặc chuyển khoản:": "Scan with a banking app or MoMo, or transfer to:",
+  "Chép số tài khoản": "Copy account number",
   "Báo lỗi": "Bug report",
   "Bạn muốn LabControl tốt hơn ở điểm nào? Gặp lỗi gì, ở bước nào?": "How could LabControl be better? What went wrong, and at which step?",
   "Bấm “Gửi góp ý” sẽ mở ứng dụng thư trên máy (Outlook, Mail…) với thư đã điền sẵn, bạn chỉ cần bấm Gửi. Máy không có ứng dụng thư: bấm “Chép nội dung” rồi dán vào Gmail gửi tới": "“Send feedback” opens your mail app (Outlook, Mail…) with the message filled in; just press Send. No mail app? Press “Copy text” and paste it into Gmail, addressed to",

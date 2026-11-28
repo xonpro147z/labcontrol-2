@@ -218,15 +218,17 @@ function AuthorSection({ version }: { version: string }) {
       </div>
       <span className="hint">{tr("Bấm “Gửi góp ý” sẽ mở ứng dụng thư trên máy (Outlook, Mail…) với thư đã điền sẵn, bạn chỉ cần bấm Gửi. Máy không có ứng dụng thư: bấm “Chép nội dung” rồi dán vào Gmail gửi tới")}{" "}<span className="mono">{AUTHOR.email}</span>.</span></div>
 
-    {(AUTHOR.momo || qr) && <div className="field"><label>{tr("Ủng hộ tác giả")}</label>
+    {AUTHOR.account && <div className="field"><label>{tr("Ủng hộ tác giả")}</label>
       <div className="small muted">{tr("LabControl miễn phí. Nếu phần mềm giúp ích cho bạn, bạn có thể ủng hộ để tác giả có thêm thời gian phát triển các phiên bản sau. Cảm ơn bạn!")}</div>
       <div className="donate">
-        {qr && <img src={AUTHOR.momoQr} alt="MoMo QR" onError={() => setQr(false)} />}
-        {AUTHOR.momo && <div className="col" style={{ gap: 6 }}>
-          <div><b className="momo">MoMo</b>{" "}<span className="mono">{AUTHOR.momo}</span></div>
-          {AUTHOR.momoName && <div className="small">{AUTHOR.momoName}</div>}
-          <button className="btn sm" style={{ alignSelf: "flex-start" }} onClick={() => copy(AUTHOR.momo)}><Copy size={13} />{tr("Chép số MoMo")}</button>
-        </div>}
+        {qr && <img src={AUTHOR.qr} alt="VietQR" onError={() => setQr(false)} />}
+        <div className="col" style={{ gap: 6 }}>
+          <div className="small muted">{tr("Quét mã bằng app ngân hàng hoặc MoMo, hoặc chuyển khoản:")}</div>
+          <div><b>{AUTHOR.bank}</b></div>
+          <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>{AUTHOR.account}</div>
+          <div className="small">{AUTHOR.accountName}</div>
+          <button className="btn sm" style={{ alignSelf: "flex-start" }} onClick={() => copy(AUTHOR.account)}><Copy size={13} />{tr("Chép số tài khoản")}</button>
+        </div>
       </div></div>}
   </>;
 }
