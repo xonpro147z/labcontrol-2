@@ -214,6 +214,8 @@ const EN: Record<string, string> = {
   "Khóa màn hình...": "Lock screen...",
   "Đã mở khóa": "Unlocked",
   "Mở khóa": "Unlock",
+  "Mở khóa máy": "Unlock",
+  "Khóa hoặc mở khóa {0}": "Lock or unlock {0}",
   "Gửi file...": "Send files...",
   "Gửi cả thư mục...": "Send a whole folder...",
   "Hoặc kéo file từ máy tính thả vào cửa sổ này": "Or drag files from your computer onto this window",

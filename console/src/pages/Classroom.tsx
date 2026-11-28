@@ -13,7 +13,7 @@ import { Viewer } from "./Viewer";
 
 type Tab = "all" | "online" | "offline" | "pending";
 type View = "grid" | "plan" | "list";
-type MenuKind = "show" | "web" | "apps" | "power" | "ctx" | "send";
+type MenuKind = "lock" | "show" | "web" | "apps" | "power" | "ctx" | "send";
 type Dlg =
   | { k: "message" } | { k: "url" } | { k: "run" } | { k: "assign" } | { k: "close" } | { k: "rename"; s: Student }
   | { k: "confirm"; title: string; text: ReactNode; danger?: boolean; ok: string; run: () => Promise<unknown> | void };
@@ -62,14 +62,11 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
   const targets = (chosen.length ? chosen : online).map((s) => s.id);
   const targetNote = chosen.length ? tr("Áp dụng cho {0} máy đã chọn", chosen.length) : tr("Áp dụng cho cả lớp ({0} máy)", online.length);
   const anyLocked = online.some((s) => s.status?.locked);
-  // Khóa ngay, không hỏi lại. Mọi máy đang chọn (hoặc cả lớp) đã khóa thì bấm lần nữa để mở khóa.
-  const tgtStudents = chosen.length ? chosen : online;
-  const allLocked = tgtStudents.length > 0 && tgtStudents.every((s) => s.status?.locked);
+  // Nút Khóa máy mở menu: Khóa máy / Mở khóa máy, áp dụng cho máy đang chọn (hoặc cả lớp), không hỏi lại.
   // màn hình khóa chỉ ghi "Máy đã bị giáo viên khóa" (máy học sinh bản cũ hiện thêm dòng này)
   const lockMsg = () => ({ t: "lock" as const, message: tr("Máy đã bị giáo viên khóa") });
   const lockNow = (ids: string[], name?: string) => run(name ? tr("Đã khóa {0}", name) : tr("Đã khóa"), () => api.send(ids, lockMsg()));
   const unlockNow = (ids: string[], name?: string) => run(name ? tr("Đã mở khóa {0}", name) : tr("Đã mở khóa"), () => api.send(ids, { t: "unlock" }));
-  const toggleLock = () => { if (!needOnline()) return; if (allLocked) unlockNow(targets); else lockNow(targets); };
   const isFree = (p: Policy) => JSON.stringify({ ...NO_POLICY, ...p }) === JSON.stringify(NO_POLICY);
   const nOverride = Object.keys(overrides).length;
   const policyOn = !isFree(policy) || Object.values(overrides).some((p) => !isFree(p));
@@ -188,8 +185,8 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
       </div>
 
       <div className="toolbar">
-        {tool(allLocked ? <Unlock size={18} /> : <Lock size={18} />, allLocked ? tr("Mở khóa") : tr("Khóa máy"), toggleLock,
-              { on: anyLocked, tone: "err", title: allLocked ? tr("Mở khóa {0}", scopeLabel) : tr("Khóa {0} ngay", scopeLabel) })}
+        {tool(<Lock size={18} />, tr("Khóa máy"), openMenu("lock"),
+              { on: anyLocked, tone: "err", caret: true, title: tr("Khóa hoặc mở khóa {0}", scopeLabel) })}
         {tool(<Cast size={18} />, tr("Trình chiếu"), openMenu("show"), { on: showing, caret: true })}
         {tool(<MessageSquare size={18} />, tr("Tin nhắn"), () => needOnline() && setDlg({ k: "message" }))}
         {tool(<FileUp size={18} />, tr("Gửi file"), openMenu("send"), { caret: true })}
@@ -286,6 +283,11 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
       </div>
 
       {/* ------------------------------------------------ menu */}
+      {menu?.k === "lock" && <Menu anchor={menu.a} onClose={() => setMenu(null)}>
+        <button onClick={() => { setMenu(null); if (needOnline()) lockNow(targets); }}><Lock size={16} />{tr("Khóa máy")}</button>
+        <button onClick={() => { setMenu(null); if (needOnline()) unlockNow(targets); }}><Unlock size={16} />{tr("Mở khóa máy")}</button>
+        <hr /><div className="mh">{targetNote}</div>
+      </Menu>}
       {menu?.k === "send" && <Menu anchor={menu.a} onClose={() => setMenu(null)}>
         <button onClick={() => pickFiles(false)}><FileUp size={16} />{tr("Gửi file...")}</button>
         <button onClick={() => pickFiles(true)}><FolderUp size={16} />{tr("Gửi cả thư mục...")}</button>
