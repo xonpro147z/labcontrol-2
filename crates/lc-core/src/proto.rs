@@ -52,9 +52,6 @@ pub struct Status {
     /// Đang bị tắt tiếng theo lệnh giáo viên
     #[serde(default)]
     pub muted: bool,
-    /// sha256 ảnh/video nền màn hình khóa máy học sinh đang giữ
-    #[serde(default)]
-    pub lock_media: String,
 }
 
 /// Chính sách giới hạn trên máy học sinh.
@@ -144,11 +141,7 @@ pub enum Ctrl {
     StreamStart { width: u32, fps: u32, quality: u8 },
     StreamStop,
     Input { ev: InputEv },
-    /// `media`: sha256 của ảnh/video nền (gửi trước bằng LockMedia); trống = nền mặc định
-    Lock { message: String, #[serde(default, skip_serializing_if = "String::is_empty")] media: String },
-    /// Ảnh/video nền màn hình khóa (gói lockmedia), dữ liệu đi bằng K_FILE cùng id
-    LockMedia { id: u64, sha256: String, size: u64 },
-    LockMediaEnd { id: u64 },
+    Lock { message: String },
     Unlock,
     Message { text: String },
     OpenUrl { url: String },
@@ -237,12 +230,12 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn roundtrip() {
         let mut buf = Vec::new();
-        write_ctrl(&mut buf, &Ctrl::Lock { message: "Chú ý".into(), media: String::new() }).await.unwrap();
+        write_ctrl(&mut buf, &Ctrl::Lock { message: "Chú ý".into() }).await.unwrap();
         write_frame(&mut buf, K_THUMB, &[1, 2, 3]).await.unwrap();
         let mut r = &buf[..];
         let (k, d) = read_frame(&mut r).await.unwrap();
         assert_eq!(k, K_CTRL);
-        assert!(matches!(parse_ctrl(&d).unwrap(), Ctrl::Lock { message, .. } if message == "Chú ý"));
+        assert!(matches!(parse_ctrl(&d).unwrap(), Ctrl::Lock { message } if message == "Chú ý"));
         let (k, d) = read_frame(&mut r).await.unwrap();
         assert_eq!((k, d), (K_THUMB, vec![1, 2, 3]));
     }

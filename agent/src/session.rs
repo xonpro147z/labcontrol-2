@@ -53,8 +53,6 @@ struct Incoming {
     left: u64,
     /// Gói cập nhật Agent (không phải file gửi cho học sinh)
     update: Option<UpdateMeta>,
-    /// Ảnh/video nền màn hình khóa (sha256)
-    media: Option<String>,
 }
 
 struct UpdateMeta {
@@ -190,7 +188,6 @@ async fn handle(
                 exam: pol.exam, web_blocked: sh.guard.web_blocked(), tools_blocked: pol.block_tools || pol.exam,
                 helper: helper::has_helper().await,
                 muted: pol.mute,
-                lock_media: crate::uiman::cached_media(),
             };
             tx.send((K_CTRL, proto::ctrl_bytes(&Ctrl::Status { status: st }))).await?;
         }
@@ -225,34 +222,7 @@ async fn handle(
         }
         // chỉ điều khiển được khi đang xem (học sinh thấy chỉ báo màu đỏ)
         Ctrl::Input { ev } if stream_stop.is_some() => sh.input.send(ev),
-        Ctrl::Lock { message, media } => sh.ui.lock(&message, &media),
-        Ctrl::LockMedia { id, sha256, size } => {
-            let ok_sha = sha256.len() == 64 && sha256.bytes().all(|b| b.is_ascii_hexdigit());
-            if !ok_sha || size > lc_core::lockmedia::MAX_SIZE || crate::uiman::media_path(&sha256).is_some() {
-                return Ok(()); // đã có sẵn hoặc không hợp lệ: các gói dữ liệu theo sau tự bị bỏ qua
-            }
-            let dir = crate::uiman::media_dir();
-            tokio::fs::create_dir_all(&dir).await?;
-            let tmp = dir.join(format!("{sha256}.dangnhan"));
-            let dest = dir.join(format!("{sha256}.lcm"));
-            let file = tokio::fs::File::create(&tmp).await?;
-            files.insert(id, Incoming { file, tmp, dest, left: size, update: None, media: Some(sha256) });
-        }
-        Ctrl::LockMediaEnd { id } => {
-            let Some(mut f) = files.remove(&id) else { return Ok(()) };
-            let Some(sha) = f.media.take() else { return Ok(()) };
-            f.file.flush().await?;
-            drop(f.file);
-            let data = tokio::fs::read(&f.tmp).await.unwrap_or_default();
-            if f.left == 0 && auth::sha256_hex(&data) == sha && lc_core::lockmedia::unpack(&data).is_ok() {
-                tokio::fs::rename(&f.tmp, &f.dest).await?;
-                crate::uiman::prune_media(&sha);
-                sh.ui.media_ready();
-            } else {
-                let _ = tokio::fs::remove_file(&f.tmp).await;
-                tracing::warn!("Ảnh nền màn hình khóa nhận thiếu hoặc hỏng");
-            }
-        }
+        Ctrl::Lock { message } => sh.ui.lock(&message),
         Ctrl::Unlock => sh.ui.unlock(),
         Ctrl::Message { text } => sh.ui.message(&text.chars().take(2000).collect::<String>()),
         Ctrl::OpenUrl { url } => {
@@ -276,7 +246,7 @@ async fn handle(
             let dest = tasks::unique(&dir, &file);
             let tmp = dest.with_extension("dangnhan");
             let file = tokio::fs::File::create(&tmp).await?;
-            files.insert(id, Incoming { file, tmp, dest, left: size, update: None, media: None });
+            files.insert(id, Incoming { file, tmp, dest, left: size, update: None });
         }
         Ctrl::UpdateBegin { id, version, platform, size, sha256, ts, sig } => {
             let msg = auth::update_message(&platform, &version, &sha256);
@@ -296,7 +266,7 @@ async fn handle(
             let tmp = std::env::temp_dir().join(format!("labcontrol-update-{id}.bin"));
             let file = tokio::fs::File::create(&tmp).await?;
             files.insert(id, Incoming { file, tmp: tmp.clone(), dest: tmp, left: size,
-                                        update: Some(UpdateMeta { version, platform, sha256, ts, sig }), media: None });
+                                        update: Some(UpdateMeta { version, platform, sha256, ts, sig }) });
         }
         Ctrl::UpdateEnd { id } => {
             let Some(mut f) = files.remove(&id) else { return Ok(()) };

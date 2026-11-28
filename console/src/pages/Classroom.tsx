@@ -65,8 +65,8 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
   // Khóa ngay, không hỏi lại. Mọi máy đang chọn (hoặc cả lớp) đã khóa thì bấm lần nữa để mở khóa.
   const tgtStudents = chosen.length ? chosen : online;
   const allLocked = tgtStudents.length > 0 && tgtStudents.every((s) => s.status?.locked);
-  const lockMsg = () => ({ t: "lock" as const, message: settings?.lock_message?.trim() || tr("Hãy chú ý lên giáo viên"),
-                           media: settings?.lock_media?.sha || "" });
+  // màn hình khóa chỉ ghi "Máy đã bị giáo viên khóa" (máy học sinh bản cũ hiện thêm dòng này)
+  const lockMsg = () => ({ t: "lock" as const, message: tr("Máy đã bị giáo viên khóa") });
   const lockNow = (ids: string[], name?: string) => run(name ? tr("Đã khóa {0}", name) : tr("Đã khóa"), () => api.send(ids, lockMsg()));
   const unlockNow = (ids: string[], name?: string) => run(name ? tr("Đã mở khóa {0}", name) : tr("Đã mở khóa"), () => api.send(ids, { t: "unlock" }));
   const toggleLock = () => { if (!needOnline()) return; if (allLocked) unlockNow(targets); else lockNow(targets); };
@@ -189,7 +189,7 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
 
       <div className="toolbar">
         {tool(allLocked ? <Unlock size={18} /> : <Lock size={18} />, allLocked ? tr("Mở khóa") : tr("Khóa máy"), toggleLock,
-              { on: anyLocked, tone: "err", title: allLocked ? tr("Mở khóa {0}", scopeLabel) : tr("Khóa {0} ngay (chữ và ảnh nền đặt trong Cài đặt › Màn hình khóa)", scopeLabel) })}
+              { on: anyLocked, tone: "err", title: allLocked ? tr("Mở khóa {0}", scopeLabel) : tr("Khóa {0} ngay", scopeLabel) })}
         {tool(<Cast size={18} />, tr("Trình chiếu"), openMenu("show"), { on: showing, caret: true })}
         {tool(<MessageSquare size={18} />, tr("Tin nhắn"), () => needOnline() && setDlg({ k: "message" }))}
         {tool(<FileUp size={18} />, tr("Gửi file"), openMenu("send"), { caret: true })}

@@ -102,16 +102,6 @@ fn send_ctrl(h: H<'_>, ids: Vec<String>, msg: Ctrl) -> Result<usize, String> {
 }
 
 #[tauri::command]
-fn set_lock_media(h: H<'_>, kind: String, name: String, fps: u16, frames: Vec<String>, thumb: String) -> Result<hub::LockMedia, String> {
-    h.set_lock_media(kind, name, fps, frames, thumb).map_err(|e| format!("{e:#}"))
-}
-
-#[tauri::command]
-fn clear_lock_media(h: H<'_>) -> Result<(), String> {
-    h.clear_lock_media().map_err(|e| format!("{e:#}"))
-}
-
-#[tauri::command]
 fn input(h: H<'_>, id: String, ev: InputEv) {
     h.send_ctrl(&[id], &Ctrl::Input { ev });
 }
@@ -224,6 +214,7 @@ pub fn run() {
             let dir = app.path().app_config_dir()?;
             let out = app.path().document_dir().or_else(|_| app.path().home_dir())?.join("LabControl");
             let res = app.path().resource_dir().ok();
+            let _ = std::fs::remove_file(dir.join("lock-media.lcm")); // ảnh nền khóa của bản 3.3.0–3.3.1 (đã bỏ)
             let hub = Hub::new(app.handle().clone(), dir, out, res)?;
             hub.clone().start();
             app.manage(hub);
@@ -231,7 +222,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_state, set_settings, push_password, remove_student, dismiss_pending, set_seat, auto_seats, set_label,
-            send_ctrl, set_lock_media, clear_lock_media, input, set_policy, clear_override, send_files, start_show, stop_show, assign, collect, delete_task, open_task_dir,
+            send_ctrl, input, set_policy, clear_override, send_files, start_show, stop_show, assign, collect, delete_task, open_task_dir,
             quiz_start, quiz_stop, open_quiz_csv, check_update, push_update, open_release
         ])
         .run(tauri::generate_context!())

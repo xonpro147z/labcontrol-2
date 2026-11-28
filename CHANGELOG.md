@@ -2,6 +2,16 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.4.0] – 2026-11-28
+### Bỏ
+- Bỏ ảnh/video nền màn hình khóa (gây mất kết nối ở phòng nhiều máy). Máy giáo viên và máy học sinh tự xóa dữ liệu cũ.
+- Bỏ chỉ báo "Giáo viên đang xem màn hình của bạn" trên máy học sinh.
+
+### Thay đổi
+- Màn hình khóa chỉ hiện "Máy đã bị giáo viên khóa", không kèm lời nhắn.
+- Mở xem một máy là **điều khiển được ngay**, không cần bấm nút Điều khiển (bấm "Thôi điều khiển" để chỉ xem).
+- Cần cập nhật máy học sinh (nút **Cập nhật**).
+
 ## [3.3.1] – 2026-11-28
 ### Sửa lỗi
 - Sau khi cập nhật máy học sinh lên 3.3.0, các máy liên tục mất kết nối rồi nối lại (ảnh thu nhỏ chập chờn, số máy trực tuyến nhảy lung tung).

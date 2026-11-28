@@ -106,7 +106,7 @@ Bố cục: thanh biểu tượng bên trái, **thanh công cụ** phía trên, 
 
 | Nút | Việc |
 |---|---|
-| Khóa máy | Bấm là khóa ngay (chặn bàn phím, chuột), không cần gõ lời nhắn. Khi các máy đã khóa, nút đổi thành **Mở khóa**. Dòng chữ và ảnh/video nền đặt trong Cài đặt › Màn hình khóa |
+| Khóa máy | Bấm là khóa ngay (chặn bàn phím, chuột). Màn hình học sinh chỉ hiện *"Máy đã bị giáo viên khóa"*. Khi các máy đã khóa, nút đổi thành **Mở khóa** |
 | Trình chiếu ▾ | Chiếu màn hình giáo viên: toàn màn hình (khóa bàn phím, chuột; học sinh không thoát ra được) hoặc trong cửa sổ. Máy vào lớp muộn tự nhận trình chiếu. |
 | Tin nhắn | Hiện hộp tin nhắn trên máy học sinh |
 | Gửi file ▾ | Gửi file hoặc cả thư mục, hoặc **kéo file từ máy tính thả vào cửa sổ LabControl**. Học sinh nhận ở thư mục `TuGiaoVien` trên màn hình nền, có thông báo khi nhận xong. Tiến độ hiện ở góc dưới phải. |
@@ -142,12 +142,12 @@ Biểu tượng trên ô máy:
 
 ### Xem lớn và điều khiển
 
-- Bấm đúp vào máy, hoặc nút mũi tên trên ô.
-- Bấm **Điều khiển** để dùng chuột và bàn phím của mình trên máy học sinh.
+- Bấm đúp vào máy, hoặc nút mũi tên trên ô: cửa sổ mở ra là **điều khiển được ngay** (chuột, bàn phím của giáo viên dùng trên máy học sinh).
+- Chỉ muốn xem: bấm **Thôi điều khiển**. Đóng cửa sổ bằng nút **Đóng** (phím Esc lúc đang điều khiển được gửi sang máy học sinh).
 
 **Quyền riêng tư:**
 
-- Khi giáo viên xem lớn hoặc điều khiển, máy học sinh luôn hiện dòng đỏ *"Giáo viên đang xem màn hình của bạn"*.
+- Máy học sinh không hiện thông báo khi giáo viên xem hoặc điều khiển. Nhà trường nên thông báo cho học sinh biết máy trong phòng có thể được giáo viên xem và điều khiển.
 - LabControl không ghi phím và không lưu ảnh màn hình.
 
 ## 4. Bài & kiểm tra
@@ -203,7 +203,6 @@ Ghi lại trong buổi học:
 | Nhận máy mới | Tắt khi đã đủ máy, để không ai ghép thêm máy lạ vào lớp |
 | Cài máy học sinh | Lệnh cài sẵn mật khẩu phòng để chép |
 | Danh sách chặn | Các trang web / ứng dụng hiện thành nút chọn nhanh |
-| Màn hình khóa | Dòng chữ trên màn hình khóa, và **ảnh hoặc video nền**. Ảnh: JPG, PNG, WebP... Video (MP4 H.264 hoặc WebM) được cắt thành chuỗi khung hình chạy lặp lại, không có tiếng; chọn thời lượng tối đa (3–30 giây) và số khung hình/giây. Ảnh/video được gửi trước tới máy đang trực tuyến (và máy vào lớp sau), nên bấm khóa là hiện ngay. Máy học sinh cần bản 3.3.0 trở lên. |
 | Hình ảnh & tốc độ | Chu kỳ cập nhật ảnh, độ nét, khung hình/giây khi trình chiếu |
 | Nền tối | Nút cuối thanh bên trái |
 

@@ -2,12 +2,12 @@ import { tr } from "../i18n";
 import { useEffect, useRef, useState } from "react";
 import { Lock, MessageSquare, MousePointer2, Unlock, X } from "lucide-react";
 import { api, displayName, onFrame, type Student } from "../api";
-import { toast } from "../components/ui";
 
-/** Xem lớn một máy học sinh, có thể điều khiển chuột/bàn phím. Máy học sinh luôn hiện chỉ báo màu đỏ khi đang bị xem. */
+/** Xem lớn và điều khiển một máy học sinh (mở ra là điều khiển ngay). */
 export function Viewer({ s, onClose }: { s: Student; onClose: () => void }) {
   const [url, setUrl] = useState<string>("");
-  const [ctl, setCtl] = useState(false);
+  // mở là điều khiển luôn; bấm "Thôi điều khiển" để chỉ xem
+  const [ctl, setCtl] = useState(true);
   const img = useRef<HTMLImageElement>(null);
   const lastMove = useRef(0);
 
@@ -44,9 +44,9 @@ export function Viewer({ s, onClose }: { s: Student; onClose: () => void }) {
         <span className="small" style={{ color: "#94a3b8" }}>{s.info.user ? `👤 ${s.info.user} · ` : ""}{s.addr}</span>
         <div className="row right">
           <button className="btn sm" style={ctl ? { background: "#dc2626", color: "#fff", borderColor: "#dc2626" } : {}}
-                  onClick={() => { setCtl(!ctl); if (!ctl) toast(tr("Đang điều khiển: chuột và bàn phím được chuyển sang máy học sinh")); }}>
+                  onClick={() => setCtl(!ctl)}>
             <MousePointer2 size={14} />{ctl ? tr("Thôi điều khiển") : tr("Điều khiển")}</button>
-          <button className="btn sm" onClick={() => api.send([s.id], { t: "lock", message: tr("Hãy chú ý lên giáo viên") })}><Lock size={14} />{tr("Khóa")}</button>
+          <button className="btn sm" onClick={() => api.send([s.id], { t: "lock", message: tr("Máy đã bị giáo viên khóa") })}><Lock size={14} />{tr("Khóa")}</button>
           <button className="btn sm" onClick={() => api.send([s.id], { t: "unlock" })}><Unlock size={14} />{tr("Mở khóa")}</button>
           <button className="btn sm" onClick={() => {
             const t = prompt(tr("Tin nhắn gửi ") + displayName(s));

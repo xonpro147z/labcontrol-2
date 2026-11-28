@@ -21,9 +21,7 @@ export interface Settings {
   thumb_seconds: number; thumb_width: number; show_fps: number; show_quality: number;
   web_list: string[]; app_list: string[]; run_list: string[]; dark: boolean; glass: boolean; seat_cols: number;
   lang: string; theme_mode: string; accent: string; wallpaper: string; glass_level: number; font_scale: number; radius: string;
-  lock_message: string; lock_media: LockMedia;
 }
-export interface LockMedia { sha: string; kind: string; name: string; fps: number; frames: number; size: number; thumb: string }
 export interface Policy { block_web: string[]; block_tools: boolean; block_apps: string[]; exam: boolean; mute?: boolean }
 export const NO_POLICY: Policy = { block_web: [], block_tools: false, block_apps: [], exam: false, mute: false };
 export interface Task { id: string; title: string; text: string; created: number; collected: Record<string, number> }
@@ -33,7 +31,7 @@ export interface QuizResult { answers: number[]; done: boolean; correct: number;
 export interface QuizRun { quiz: Quiz; started: number; running: boolean; results: Record<string, QuizResult> }
 
 export type Ctrl =
-  | { t: "lock"; message: string; media?: string } | { t: "unlock" } | { t: "message"; text: string } | { t: "open_url"; url: string }
+  | { t: "lock"; message: string } | { t: "unlock" } | { t: "message"; text: string } | { t: "open_url"; url: string }
   | { t: "power"; action: "shutdown" | "restart" | "logoff" } | { t: "close_app"; name: string } | { t: "run_app"; cmd: string }
   | { t: "stream_start"; width: number; fps: number; quality: number } | { t: "stream_stop" };
 
@@ -60,9 +58,6 @@ export const api = {
   setSeat: (id: string, seat: [number, number] | null) => invoke("set_seat", { id, seat }),
   autoSeats: (cols: number) => invoke("auto_seats", { cols }),
   setLabel: (id: string, label: string) => invoke("set_label", { id, label }),
-  setLockMedia: (kind: string, name: string, fps: number, frames: string[], thumb: string) =>
-    invoke<LockMedia>("set_lock_media", { kind, name, fps, frames, thumb }),
-  clearLockMedia: () => invoke("clear_lock_media"),
   send: (ids: string[], msg: Ctrl) => invoke<number>("send_ctrl", { ids, msg }),
   input: (id: string, ev: InputEv) => invoke("input", { id, ev }),
   setPolicy: (policy: Policy, ids: string[] | null = null) => invoke<number>("set_policy", { policy, ids }),

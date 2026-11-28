@@ -4,16 +4,11 @@
 use std::io::Write;
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{sync_channel, SyncSender, TrySendError};
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 #[derive(Default)]
 struct State {
     want_lock: Option<String>,
-    /// sha256 ảnh/video nền màn hình khóa giáo viên chọn
-    want_media: String,
-    /// ảnh/video nền cửa sổ khóa đang hiện
-    lock_media: Option<PathBuf>,
     want_show: Option<bool>, // Some(toàn màn hình?)
     viewers: usize,
     lock: Option<Child>,
@@ -42,49 +37,10 @@ pub type QuizSink = Arc<dyn Fn(String, Vec<i32>, bool) + Send + Sync>;
 #[derive(Clone)]
 pub struct UiMan(Arc<Mutex<State>>, QuizSink);
 
-/// Thư mục giữ ảnh/video nền màn hình khóa
-pub fn media_dir() -> PathBuf {
-    crate::config::dir().join("lockmedia")
-}
-
-pub fn media_path(sha: &str) -> Option<PathBuf> {
-    if sha.is_empty() || !sha.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return None;
-    }
-    let p = media_dir().join(format!("{sha}.lcm"));
-    p.is_file().then_some(p)
-}
-
-/// sha256 gói ảnh/video nền đang giữ (để máy giáo viên khỏi gửi lại)
-pub fn cached_media() -> String {
-    std::fs::read_dir(media_dir()).ok().and_then(|rd| {
-        rd.flatten().find_map(|e| e.file_name().to_string_lossy().strip_suffix(".lcm").map(|s| s.to_string()))
-    }).unwrap_or_default()
-}
-
-/// Chỉ giữ gói mới nhất
-pub fn prune_media(keep: &str) {
-    if let Ok(rd) = std::fs::read_dir(media_dir()) {
-        for e in rd.flatten() {
-            let n = e.file_name().to_string_lossy().to_string();
-            if !n.starts_with(keep) {
-                let _ = std::fs::remove_file(e.path());
-            }
-        }
-    }
-}
-
 fn spawn_ui(mode: &str, text: &str, fullscreen: bool, piped: bool) -> Option<Child> {
-    spawn_ui_with(mode, text, fullscreen, piped, None)
-}
-
-fn spawn_ui_with(mode: &str, text: &str, fullscreen: bool, piped: bool, media: Option<&PathBuf>) -> Option<Child> {
     let exe = std::env::current_exe().ok()?;
     let mut c = Command::new(exe);
     c.args(["ui", mode, "--text", text]);
-    if let Some(m) = media {
-        c.env("LABCONTROL_LOCK_MEDIA", m);
-    }
     c.env("LABCONTROL_LANG", crate::i18n::code());
     if fullscreen {
         c.arg("--fullscreen");
@@ -116,6 +72,8 @@ fn kill(c: &mut Option<Child>) {
 
 impl UiMan {
     pub fn new(sink: QuizSink) -> Self {
+        // ảnh/video nền màn hình khóa của bản 3.3.0–3.3.1 (đã bỏ)
+        let _ = std::fs::remove_dir_all(crate::config::dir().join("lockmedia"));
         UiMan(Arc::new(Mutex::new(State::default())), sink)
     }
 
@@ -148,27 +106,9 @@ impl UiMan {
         }
         // khóa máy
         match s.want_lock.clone() {
-            Some(msg) => {
-                // ảnh/video nền tới sau lệnh khóa: mở lại cửa sổ khóa với nền mới
-                let media = media_path(&s.want_media);
-                if !alive(&mut s.lock) || media != s.lock_media {
-                    // mở cửa sổ mới trước rồi mới đóng cửa sổ cũ, để màn hình không lộ ra giữa chừng
-                    let old = s.lock.take();
-                    s.lock = spawn_ui_with("lock", &msg, true, false, media.as_ref());
-                    s.lock_media = media;
-                    if let Some(mut o) = old {
-                        std::thread::spawn(move || {
-                            std::thread::sleep(std::time::Duration::from_millis(1500));
-                            let _ = o.kill();
-                            let _ = o.wait();
-                        });
-                    }
-                }
-            }
-            None => {
-                kill(&mut s.lock);
-                s.lock_media = None;
-            }
+            Some(msg) if !alive(&mut s.lock) => s.lock = spawn_ui("lock", &msg, true, false),
+            None => kill(&mut s.lock),
+            _ => {}
         }
         // trình chiếu. Đang khóa máy thì tạm ẩn cửa sổ trình chiếu: hai cửa sổ toàn màn hình cùng giành
         // tiêu điểm sẽ nhấp nháy liên tục. Mở khóa thì trình chiếu hiện lại (khung đầy đủ đến trong ≤ 2 giây).
@@ -199,14 +139,8 @@ impl UiMan {
             }
             _ => {}
         }
-        // chỉ báo đang được xem
-        if s.viewers > 0 {
-            if !alive(&mut s.badge) {
-                s.badge = spawn_ui("badge", "", false, false);
-            }
-        } else {
-            kill(&mut s.badge);
-        }
+        // Không hiện chỉ báo "Giáo viên đang xem màn hình" (giáo viên yêu cầu)
+        kill(&mut s.badge);
         // dải "Đang thi"
         if s.want_exam {
             if !alive(&mut s.exam) {
@@ -307,16 +241,8 @@ impl UiMan {
         self.0.lock().unwrap().want_exam
     }
 
-    pub fn lock(&self, msg: &str, media: &str) {
-        let mut s = self.0.lock().unwrap();
-        s.want_lock = Some(if msg.trim().is_empty() { l!("Hãy chú ý lên giáo viên", "Please pay attention to the teacher") } else { msg.into() });
-        s.want_media = media.to_string();
-        drop(s);
-        self.reconcile();
-    }
-
-    /// Vừa nhận xong ảnh/video nền màn hình khóa
-    pub fn media_ready(&self) {
+    pub fn lock(&self, msg: &str) {
+        self.0.lock().unwrap().want_lock = Some(if msg.trim().is_empty() { l!("Hãy chú ý lên giáo viên", "Please pay attention to the teacher") } else { msg.into() });
         self.reconcile();
     }
 

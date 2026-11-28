@@ -64,7 +64,7 @@ React + TypeScript + Tauri 2                       Agent (Rust, phiên của h�
 
 **Minh bạch:**
 
-- Khi giáo viên xem hoặc điều khiển, máy học sinh luôn hiện dòng đỏ *"Giáo viên đang xem màn hình của bạn"*.
+- Máy học sinh không hiện thông báo khi giáo viên xem hoặc điều khiển; nhà trường nên cho học sinh biết điều này.
 - Không ghi phím, không lưu ảnh.
 
 | Thư mục | Nội dung |

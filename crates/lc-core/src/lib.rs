@@ -7,7 +7,6 @@ pub mod auth;
 pub mod capture;
 pub mod handshake;
 pub mod img;
-pub mod lockmedia;
 pub mod pair;
 pub mod proto;
 pub mod tls;
