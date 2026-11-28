@@ -42,6 +42,7 @@ impl Shared {
             screen_w: w,
             screen_h: h,
             platform: std::env::consts::OS.into(),
+            macs: sys::mac_addresses(),
         }
     }
 }

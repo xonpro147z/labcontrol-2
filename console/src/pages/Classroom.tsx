@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AppWindow, Ban, BookOpen, Cast, ChevronDown, ClipboardCheck, Eye, FileUp, Globe, KeyRound, LayoutGrid, List,
   Lock, MessageSquare, MonitorOff, MousePointer2, Pencil, Power, Search, ShieldAlert, ShieldCheck, ShieldOff, Trash2,
-  Unlock, UserX, Wand2, WifiOff, X, Armchair, Rocket, Download, RefreshCw, FolderUp, UserCog, VolumeX, Volume2,
+  Unlock, UserX, Wand2, WifiOff, X, Armchair, Rocket, Download, RefreshCw, FolderUp, UserCog, VolumeX, Volume2, Sunrise,
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -62,6 +62,26 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
   const targets = (chosen.length ? chosen : online).map((s) => s.id);
   const targetNote = chosen.length ? tr("Áp dụng cho {0} máy đã chọn", chosen.length) : tr("Áp dụng cho cả lớp ({0} máy)", online.length);
   const anyLocked = online.some((s) => s.status?.locked);
+  // Wake-on-LAN: máy phải bật sẵn tính năng này trong BIOS và cùng mạng LAN với máy giáo viên
+  const wakeUp = (list: Student[]) => run(tr("Đã gửi lệnh mở máy"), () => api.wake(list.map((s) => s.id)));
+  // chỉ xin ảnh thu nhỏ của các máy đang hiện trên màn hình
+  const listKey = list.map((s) => s.id).join(",");
+  useEffect(() => {
+    if (tab === "pending" || view === "list") { api.setVisible([]); return; }
+    const seen = new Set<string>();
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const io = new IntersectionObserver((ents) => {
+      for (const e of ents) {
+        const id = (e.target as HTMLElement).dataset.id!;
+        if (e.isIntersecting) seen.add(id); else seen.delete(id);
+      }
+      clearTimeout(t);
+      t = setTimeout(() => api.setVisible([...seen]), 250);
+    }, { rootMargin: "300px" });
+    document.querySelectorAll<HTMLElement>(".tile[data-id]").forEach((el) => io.observe(el));
+    return () => { io.disconnect(); clearTimeout(t); };
+  }, [listKey, view, tab, size]);
+  useEffect(() => () => { api.setVisible([]); }, []);
   // Khóa ngay, không hỏi lại. Mọi máy đang chọn (hoặc cả lớp) đã khóa thì bấm lần nữa để mở khóa.
   const tgtStudents = chosen.length ? chosen : online;
   const allLocked = tgtStudents.length > 0 && tgtStudents.every((s) => s.status?.locked);
@@ -304,6 +324,13 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
       {menu?.k === "apps" && <AppsMenu anchor={menu.a} onClose={() => setMenu(null)} policy={curPol} scope={scopeLabel} list={settings?.app_list ?? []}
                                        apply={(p) => setPol(p, tr("Đã cập nhật chặn ứng dụng"))} edit={() => { setMenu(null); openSettings("lists"); }} />}
       {menu?.k === "power" && <Menu anchor={menu.a} onClose={() => setMenu(null)}>
+        {(() => {
+          // mở máy: máy ngoại tuyến đang chọn, không chọn thì mọi máy ngoại tuyến
+          const off = (sel.size ? all.filter((s) => sel.has(s.id)) : all).filter((s) => s.state !== "online");
+          return <button disabled={!off.length} onClick={() => { setMenu(null); wakeUp(off); }}>
+            <Sunrise size={16} />{off.length ? tr("Mở máy ({0} máy đang tắt)", off.length) : tr("Mở máy (không có máy nào đang tắt)")}</button>;
+        })()}
+        <hr />
         {([["shutdown", tr("Tắt máy")], ["restart", tr("Khởi động lại")], ["logoff", tr("Đăng xuất")]] as const).map(([a, l]) => (
           <button key={a} onClick={() => { setMenu(null); if (needOnline()) setDlg({ k: "confirm", title: `${l}?`, danger: true, ok: l,
             text: tr("{0} {1} máy học sinh. Bài đang làm chưa lưu có thể bị mất.", l, targets.length), run: () => api.send(targets, { t: "power", action: a }) }); }}>
@@ -342,6 +369,7 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
           {on && overrides[s.id] && <button onClick={() => { setMenu(null); run(tr("{0} dùng lại giới hạn chung", displayName(s)), () => api.clearOverride([s.id])); }}>
             <ShieldCheck size={16} />{tr("Dùng giới hạn chung của lớp")}</button>}
           <button onClick={() => { setMenu(null); setDlg({ k: "rename", s }); }}><Pencil size={16} />{tr("Đặt tên hiển thị")}</button>
+          {!on && <button onClick={() => { setMenu(null); wakeUp([s]); }}><Sunrise size={16} />{tr("Mở máy")}</button>}
           {!on && <button className="danger" onClick={() => { setMenu(null); setDlg({ k: "confirm", title: tr("Gỡ máy khỏi danh sách?"), danger: true, ok: tr("Gỡ"),
             text: tr("Máy này sẽ hiện lại khi tự nối về. Muốn máy không nối về nữa, hãy gỡ LabControl trên máy đó."), run: () => api.remove(s.id) }); }}>
             <Trash2 size={16} />{tr("Gỡ khỏi danh sách")}</button>}
@@ -399,7 +427,7 @@ function Tile({ s, thumb, sel, onClick, onCheck, onOpen, onCtx, onGrab }: {
   const on = s.state === "online";
   const user = s.status?.user || s.info.user;
   return (
-    <div className={`tile ${sel ? "sel" : ""} ${on ? "" : "off"}`} onClick={onClick} onDoubleClick={onOpen} onContextMenu={onCtx}
+    <div data-id={s.id} className={`tile ${sel ? "sel" : ""} ${on ? "" : "off"}`} onClick={onClick} onDoubleClick={onOpen} onContextMenu={onCtx}
          onPointerDown={onGrab}>
       <div className="shot">
         {on && thumb ? <img src={thumb} alt="" draggable={false} /> : <div className="ph">{on ? <div className="spinner" /> : <MonitorOff size={26} />}</div>}

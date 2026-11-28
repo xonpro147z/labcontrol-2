@@ -30,6 +30,9 @@ pub struct AgentInfo {
     /// "windows" | "linux" (từ bản 3.0.2)
     #[serde(default)]
     pub platform: String,
+    /// Địa chỉ MAC các card mạng (để mở máy từ xa bằng Wake-on-LAN, từ bản 3.5.0)
+    #[serde(default)]
+    pub macs: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -246,3 +249,28 @@ mod tests {
         assert!(!serde_json::to_string(&q).unwrap().contains("answer"));
     }
 }
+
+/// Gói "magic packet" Wake-on-LAN: 6 byte 0xFF rồi 16 lần địa chỉ MAC. `mac` dạng "aa:bb:cc:dd:ee:ff" hoặc "aa-bb-...".
+pub fn wol_packet(mac: &str) -> Option<Vec<u8>> {
+    let b: Vec<u8> = mac.split([':', '-']).filter_map(|x| u8::from_str_radix(x, 16).ok()).collect();
+    if b.len() != 6 || b.iter().all(|x| *x == 0) {
+        return None;
+    }
+    let mut p = vec![0xFFu8; 6];
+    for _ in 0..16 {
+        p.extend_from_slice(&b);
+    }
+    Some(p)
+}
+
+#[cfg(test)]
+mod wol_tests {
+    #[test]
+    fn packet() {
+        let p = super::wol_packet("00:1A:2b:3c:4d:5e").unwrap();
+        assert_eq!(p.len(), 102);
+        assert_eq!(&p[6..12], &[0x00, 0x1a, 0x2b, 0x3c, 0x4d, 0x5e]);
+        assert!(super::wol_packet("zz").is_none());
+    }
+}
+

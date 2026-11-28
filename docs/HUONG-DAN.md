@@ -119,7 +119,7 @@ Bố cục: thanh biểu tượng bên trái, **thanh công cụ** phía trên, 
 | Đóng ứng dụng | Đóng một ứng dụng đang mở. Gợi ý các ứng dụng học sinh đang dùng. |
 | Chế độ thi | Hiện dải "Đang trong giờ kiểm tra"; đóng trình duyệt, ứng dụng nhắn tin, phần mềm điều khiển từ xa và công cụ hệ thống |
 | Tắt tiếng | Tắt loa máy học sinh; học sinh tự bật lại sẽ bị tắt lại ngay. Bấm lần nữa để bật tiếng. Linux cần `pactl` hoặc `amixer` |
-| Nguồn ▾ | Tắt máy / Khởi động lại / Đăng xuất |
+| Nguồn ▾ | **Mở máy** (Wake-on-LAN) / Tắt máy / Khởi động lại / Đăng xuất. Mở máy áp dụng cho máy đang tắt được chọn, không chọn thì mọi máy đang tắt. Chuột phải vào máy đang tắt cũng có **Mở máy** |
 | Bỏ giới hạn | Bỏ mọi chặn web, chặn ứng dụng, chế độ thi |
 
 Chặn web, chặn ứng dụng và chế độ thi:
@@ -206,6 +206,13 @@ Ghi lại trong buổi học:
 | Hình ảnh & tốc độ | Chu kỳ cập nhật ảnh, độ nét, khung hình/giây khi trình chiếu |
 | Tác giả & góp ý | Nút **Góp ý** ở thanh bên trái: thông tin tác giả, ô góp ý / báo lỗi gửi qua email, ủng hộ tác giả |
 | Nền tối | Nút cuối thanh bên trái |
+
+### Mở máy từ xa (Wake-on-LAN)
+
+- Máy học sinh cần bật **Wake-on-LAN** trong BIOS/UEFI (thường ở mục Power Management: "Wake on LAN", "Power On by PCI-E", "Resume by LAN"), và cắm **dây mạng** (Wi-Fi thường không mở máy được).
+- Trên Windows, nên tắt **Fast Startup** (Control Panel › Power Options › Choose what the power buttons do) và trong Device Manager › card mạng › Power Management, bật "Allow this device to wake the computer".
+- Máy phải vào lớp ít nhất một lần với LabControl 3.5.0 trở lên để máy giáo viên biết địa chỉ MAC.
+- Máy giáo viên và máy học sinh nên cùng một mạng LAN (cùng VLAN); khác mạng thì cần thiết bị mạng cho phép gói broadcast.
 
 ## 7. Cập nhật phần mềm
 

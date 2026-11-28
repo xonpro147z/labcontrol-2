@@ -11,8 +11,6 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{anyhow, bail, Context, Result};
-use base64::engine::general_purpose::STANDARD as B64;
-use base64::Engine;
 use lc_core::handshake::{self, Outcome, TeacherSide};
 use lc_core::proto::{self, AgentInfo, Ctrl, Discover, Policy, Quiz, Status, K_CTRL, K_FILE, K_STREAM, K_THUMB, K_TILES};
 use lc_core::{auth, capture, img, tls, DISCOVER_PORT, PROTO_VERSION, TEACHER_PORT};
@@ -109,6 +107,8 @@ pub struct Machine {
     pub last_seen: u64,
     /// Tên học sinh giáo viên gõ (nếu muốn khác tên đăng nhập)
     pub label: String,
+    /// Địa chỉ MAC (Agent 3.5.0 trở lên báo về) để mở máy bằng Wake-on-LAN
+    pub macs: Vec<String>,
 }
 
 type Tx = mpsc::Sender<(u8, Arc<Vec<u8>>)>;
@@ -132,6 +132,8 @@ pub struct StudentDto {
     pub status: Option<Status>,
     pub seat: Option<(u32, u32)>,
     pub label: String,
+    /// Đã biết địa chỉ MAC (mở máy từ xa được)
+    pub wol: bool,
 }
 
 impl Student {
@@ -227,6 +229,10 @@ pub struct Hub {
     listen_error: RwLock<String>,
     res_dir: Option<PathBuf>,
     latest: RwLock<Option<UpdateInfo>>,
+    /// Ảnh thu nhỏ / khung hình mới nhất, giao diện đọc qua địa chỉ lcimg://localhost/<loại>/<máy>
+    images: Mutex<HashMap<String, Arc<Vec<u8>>>>,
+    /// Máy đang hiện trên màn hình giáo viên (None = mọi máy); chỉ xin ảnh thu nhỏ của các máy này
+    visible: RwLock<Option<std::collections::HashSet<String>>>,
 }
 
 fn read_json<T: for<'de> Deserialize<'de> + Default>(p: &Path) -> T {
@@ -297,6 +303,7 @@ impl Hub {
             pending: Mutex::new(HashMap::new()), show: Mutex::new(None), policy: RwLock::new(Policy::default()), overrides: RwLock::new(HashMap::new()),
             tasks: Mutex::new(tasks), quiz: Mutex::new(None), file_seq: AtomicU64::new(1), file_meta: Mutex::new(HashMap::new()), conn_seq: AtomicU64::new(1),
             listen_error: RwLock::new(String::new()), res_dir, latest: RwLock::new(None),
+            images: Mutex::new(HashMap::new()), visible: RwLock::new(None),
         }))
     }
 
@@ -336,7 +343,7 @@ impl Hub {
         StudentDto {
             id: s.id.clone(), addr: s.addr.read().unwrap().clone(), info: s.info.read().unwrap().clone(),
             state: if s.online.load(Ordering::Relaxed) { "online".into() } else { "offline".into() },
-            status: s.status.read().unwrap().clone(), seat: m.seat, label: m.label,
+            status: s.status.read().unwrap().clone(), seat: m.seat, label: m.label, wol: !m.macs.is_empty(),
         }
     }
 
@@ -657,6 +664,9 @@ impl Hub {
             e.name = info.name.clone();
             e.ip = addr.ip().to_string();
             e.last_seen = now_ms();
+            if !info.macs.is_empty() {
+                e.macs = info.macs.clone();
+            }
         }
         self.save_machines();
         let st = {
@@ -714,11 +724,14 @@ impl Hub {
                     return Ok(()); // đã có phiên mới thay thế
                 }
                 match k {
+                    // ảnh giữ nguyên dạng nhị phân; giao diện chỉ nhận thông báo "có ảnh mới" rồi tự tải qua lcimg://
                     K_THUMB => {
-                        let _ = self.app.emit("thumb", json!({"id": st.id, "jpeg": B64.encode(&d)}));
+                        self.images.lock().unwrap().insert(format!("thumb/{}", st.id), Arc::new(d));
+                        let _ = self.app.emit("thumb", json!({"id": st.id}));
                     }
                     K_STREAM => {
-                        let _ = self.app.emit("frame", json!({"id": st.id, "jpeg": B64.encode(&d)}));
+                        self.images.lock().unwrap().insert(format!("frame/{}", st.id), Arc::new(d));
+                        let _ = self.app.emit("frame", json!({"id": st.id}));
                     }
                     K_FILE if d.len() >= 8 => {
                         let fid = u64::from_be_bytes(d[..8].try_into().unwrap());
@@ -808,14 +821,20 @@ impl Hub {
 
     // -------------------------------------------------------------- cập nhật ảnh thu nhỏ định kỳ
     async fn poll(self: Arc<Self>) {
+        use tauri::Manager;
         loop {
             let s = self.settings();
             let list: Vec<Arc<Student>> = self.students.lock().unwrap().values().cloned().collect();
             let thumb = Arc::new(proto::ctrl_bytes(&Ctrl::GetThumb { width: s.thumb_width.clamp(160, 800), quality: 55 }));
             let status = Arc::new(proto::ctrl_bytes(&Ctrl::GetStatus));
+            // cửa sổ giáo viên đang thu nhỏ / ẩn: không xin ảnh thu nhỏ (vẫn hỏi trạng thái)
+            let hidden = self.app.webview_windows().values().next()
+                .map(|w| w.is_minimized().unwrap_or(false) || !w.is_visible().unwrap_or(true)).unwrap_or(false);
+            let visible = self.visible.read().unwrap().clone();
             for st in list {
                 if let Some(tx) = st.tx() {
-                    if !st.streaming.load(Ordering::Relaxed) {
+                    let shown = visible.as_ref().is_none_or(|v| v.contains(&st.id));
+                    if !hidden && shown && !st.streaming.load(Ordering::Relaxed) {
                         let _ = tx.try_send((K_CTRL, thumb.clone()));
                     }
                     let _ = tx.try_send((K_CTRL, status.clone()));
@@ -826,6 +845,56 @@ impl Hub {
     }
 
     // -------------------------------------------------------------- lệnh
+    /// Ảnh cho giao diện (lcimg://localhost/thumb/<máy> hoặc /frame/<máy>)
+    pub fn image(&self, key: &str) -> Option<Arc<Vec<u8>>> {
+        self.images.lock().unwrap().get(key).cloned()
+    }
+
+    /// Giao diện báo các máy đang hiện trên màn hình (None = mọi máy)
+    pub fn set_visible(&self, ids: Option<Vec<String>>) {
+        *self.visible.write().unwrap() = ids.map(|v| v.into_iter().collect());
+    }
+
+    /// Mở máy học sinh bằng Wake-on-LAN. Trả về số máy đã gửi lệnh.
+    pub fn wake(&self, ids: &[String]) -> Result<usize> {
+        let targets: Vec<(String, String, Vec<String>)> = {
+            let m = self.machines.lock().unwrap();
+            ids.iter().filter_map(|i| m.get(i).map(|x| (x.name.clone(), x.ip.clone(), x.macs.clone()))).collect()
+        };
+        let sock = std::net::UdpSocket::bind(("0.0.0.0", 0))?;
+        sock.set_broadcast(true)?;
+        let (mut n, mut unknown) = (0, vec![]);
+        for (name, ip, macs) in targets {
+            let pkts: Vec<Vec<u8>> = macs.iter().filter_map(|m| proto::wol_packet(m)).collect();
+            if pkts.is_empty() {
+                unknown.push(name);
+                continue;
+            }
+            // gửi tới cả mạng (255.255.255.255) và địa chỉ broadcast của lớp mạng máy đó (x.y.z.255), cổng 9 và 7
+            let mut dests = vec!["255.255.255.255".to_string()];
+            if let Ok(std::net::IpAddr::V4(v4)) = ip.parse::<std::net::IpAddr>() {
+                let o = v4.octets();
+                dests.push(format!("{}.{}.{}.255", o[0], o[1], o[2]));
+            }
+            for p in &pkts {
+                for d in &dests {
+                    for port in [9u16, 7] {
+                        let _ = sock.send_to(p, (d.as_str(), port));
+                    }
+                }
+            }
+            n += 1;
+        }
+        if n == 0 && !unknown.is_empty() {
+            bail!("{}", l!("Chưa biết địa chỉ MAC của: {}. Máy cần bật và vào lớp một lần với LabControl 3.5.0 trở lên.",
+                           "MAC address unknown for: {}. The computer must join the class once with LabControl 3.5.0 or newer.", unknown.join(", ")));
+        }
+        if !unknown.is_empty() {
+            self.notice(l!("Chưa biết địa chỉ MAC của: {}", "MAC address unknown for: {}", unknown.join(", ")));
+        }
+        Ok(n)
+    }
+
     pub fn online_ids(&self) -> Vec<String> {
         self.students.lock().unwrap().values().filter(|s| s.online.load(Ordering::Relaxed)).map(|s| s.id.clone()).collect()
     }

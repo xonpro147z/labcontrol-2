@@ -1,4 +1,4 @@
-export const VERSION = "3.4.1";
+export const VERSION = "3.5.0";
 export const SOURCE_URL = "https://github.com/xonpro147z/labcontrol-2";
 
 /** Thông tin tác giả – hiện trong Cài đặt › Tác giả & góp ý */

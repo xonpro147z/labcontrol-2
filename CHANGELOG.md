@@ -2,6 +2,19 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.5.0] – 2026-11-28
+### Thêm
+- **Mở máy từ xa (Wake-on-LAN)**: Nguồn ▾ › Mở máy, hoặc chuột phải vào máy đang tắt. Máy học sinh báo địa chỉ MAC khi vào lớp
+  (cần cập nhật máy học sinh lên 3.5.0 và bật Wake-on-LAN trong BIOS).
+
+### Cải tiến
+- Giảm RAM và CPU của phần mềm giáo viên:
+  - Ảnh màn hình học sinh được đưa thẳng dạng JPEG vào giao diện (giao thức nội bộ `lcimg`), không còn đổi sang base64/JSON.
+  - Gom cập nhật ảnh thu nhỏ, không vẽ lại cả lớp cho từng máy.
+  - Chỉ xin ảnh thu nhỏ của các máy đang hiện trên màn hình; ngừng hẳn khi cửa sổ LabControl bị thu nhỏ hoặc đang xem dạng danh sách.
+  - Dùng bộ cấp phát bộ nhớ mimalloc (ít phân mảnh hơn).
+- Xem / điều khiển một máy học sinh mượt hơn (khung hình cũng đi theo đường mới).
+
 ## [3.4.1] – 2026-11-28
 ### Thêm
 - Mục **Tác giả & góp ý** (nút **Góp ý** ở thanh bên trái): tên tác giả Ngô Văn Hưng, email liên hệ hỗ trợ,

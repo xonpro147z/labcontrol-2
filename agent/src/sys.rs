@@ -134,3 +134,26 @@ pub fn run_app(cmd: &str) -> std::io::Result<()> {
         Ok(())
     }
 }
+
+/// Địa chỉ MAC các card mạng (ưu tiên card thật), để máy giáo viên mở máy bằng Wake-on-LAN
+pub fn mac_addresses() -> Vec<String> {
+    let (mut real, mut local): (Vec<String>, Vec<String>) = (vec![], vec![]);
+    if let Ok(it) = mac_address::MacAddressIterator::new() {
+        for m in it {
+            let b = m.bytes();
+            // bỏ 00:00:.. và địa chỉ multicast
+            if b.iter().all(|x| *x == 0) || b[0] & 0x01 != 0 {
+                continue;
+            }
+            let s = b.iter().map(|x| format!("{x:02x}")).collect::<Vec<_>>().join(":");
+            // địa chỉ "locally administered" thường là card ảo: chỉ dùng khi không có card thật
+            let list = if b[0] & 0x02 == 0 { &mut real } else { &mut local };
+            if !list.contains(&s) {
+                list.push(s);
+            }
+        }
+    }
+    let mut out = if real.is_empty() { local } else { real };
+    out.truncate(8);
+    out
+}

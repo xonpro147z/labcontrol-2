@@ -102,6 +102,16 @@ fn send_ctrl(h: H<'_>, ids: Vec<String>, msg: Ctrl) -> Result<usize, String> {
 }
 
 #[tauri::command]
+fn wake(h: H<'_>, ids: Vec<String>) -> Result<usize, String> {
+    h.wake(&ids).map_err(|e| format!("{e:#}"))
+}
+
+#[tauri::command]
+fn set_visible(h: H<'_>, ids: Option<Vec<String>>) {
+    h.set_visible(ids);
+}
+
+#[tauri::command]
 fn input(h: H<'_>, id: String, ev: InputEv) {
     h.send_ctrl(&[id], &Ctrl::Input { ev });
 }
@@ -225,11 +235,39 @@ fn open_path(p: &std::path::Path) -> Result<(), String> {
     r.map(|_| ()).map_err(|e| e.to_string())
 }
 
+fn pct_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
+                out.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     lc_core::capture::init_dpi();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        // ảnh thu nhỏ và khung hình xem lớn: giao diện tải thẳng dạng JPEG, không qua base64/JSON
+        .register_uri_scheme_protocol("lcimg", |ctx, req| {
+            let key = pct_decode(req.uri().path().trim_start_matches('/'));
+            let img = ctx.app_handle().try_state::<Arc<Hub>>().and_then(|h| h.image(&key));
+            let b = tauri::http::Response::builder().header("Cache-Control", "no-store").header("Access-Control-Allow-Origin", "*");
+            match img {
+                Some(d) => b.header("Content-Type", "image/jpeg").body(d.as_ref().clone()).unwrap(),
+                None => b.status(404).body(Vec::new()).unwrap(),
+            }
+        })
         .setup(|app| {
             let dir = app.path().app_config_dir()?;
             let out = app.path().document_dir().or_else(|_| app.path().home_dir())?.join("LabControl");
@@ -243,7 +281,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_state, set_settings, push_password, remove_student, dismiss_pending, set_seat, auto_seats, set_label,
             send_ctrl, input, set_policy, clear_override, send_files, start_show, stop_show, assign, collect, delete_task, open_task_dir,
-            quiz_start, quiz_stop, open_quiz_csv, check_update, push_update, open_release, open_feedback_mail
+            quiz_start, quiz_stop, open_quiz_csv, check_update, push_update, open_release, open_feedback_mail, wake, set_visible
         ])
         .run(tauri::generate_context!())
         .expect("không khởi động được LabControl");

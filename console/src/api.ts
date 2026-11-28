@@ -14,6 +14,8 @@ export interface Status {
 export interface Student {
   id: string; addr: string; info: AgentInfo; state: "online" | "offline"; status: Status | null;
   seat: [number, number] | null; label: string;
+  /** đã biết địa chỉ MAC: mở máy từ xa được */
+  wol?: boolean;
 }
 export interface Pending { id: string; name: string; user: string; ip: string; reason: string; at: number }
 export interface Settings {
@@ -58,6 +60,8 @@ export const api = {
   setSeat: (id: string, seat: [number, number] | null) => invoke("set_seat", { id, seat }),
   autoSeats: (cols: number) => invoke("auto_seats", { cols }),
   setLabel: (id: string, label: string) => invoke("set_label", { id, label }),
+  wake: (ids: string[]) => invoke<number>("wake", { ids }),
+  setVisible: (ids: string[] | null) => invoke("set_visible", { ids }),
   send: (ids: string[], msg: Ctrl) => invoke<number>("send_ctrl", { ids, msg }),
   input: (id: string, ev: InputEv) => invoke("input", { id, ev }),
   setPolicy: (policy: Policy, ids: string[] | null = null) => invoke<number>("set_policy", { policy, ids }),
@@ -138,6 +142,12 @@ export function dismissTransfer(batch: number) {
 export const notices = new Set<(t: string) => void>();
 export const infos = new Set<(t: string) => void>();
 
+// Ảnh do máy giáo viên giữ, tải thẳng dạng JPEG qua giao thức riêng "lcimg"
+// (Windows: http://lcimg.localhost/..., macOS/Linux: lcimg://localhost/...)
+const IMG_BASE = /Windows/i.test(navigator.userAgent) ? "http://lcimg.localhost/" : "lcimg://localhost/";
+let imgSeq = 0;
+function imgUrl(kind: "thumb" | "frame", id: string) { return `${IMG_BASE}${kind}/${encodeURIComponent(id)}?v=${++imgSeq}`; }
+
 let started = false;
 export async function startStore() {
   if (started) return;
@@ -151,16 +161,26 @@ export async function startStore() {
   await listen<string>("student_removed", (e) => {
     const m = new Map(snap.students); m.delete(e.payload); set({ students: m });
   });
-  await listen<{ id: string; jpeg: string }>("thumb", (e) => {
-    const t = new Map(snap.thumbs); t.set(e.payload.id, `data:image/jpeg;base64,${e.payload.jpeg}`); set({ thumbs: t });
+  // ảnh mới: gom lại rồi cập nhật giao diện một lần (không vẽ lại cả lớp cho từng máy)
+  let pending: string[] = [];
+  let flush: ReturnType<typeof setTimeout> | null = null;
+  await listen<{ id: string }>("thumb", (e) => {
+    pending.push(e.payload.id);
+    if (flush) return;
+    flush = setTimeout(() => {
+      const t = new Map(snap.thumbs);
+      for (const id of pending) t.set(id, imgUrl("thumb", id));
+      pending = []; flush = null;
+      set({ thumbs: t });
+    }, 150);
   });
   await listen<{ id: string; status: Status }>("status", (e) => {
     const s = snap.students.get(e.payload.id);
     if (!s) return;
     const m = new Map(snap.students); m.set(s.id, { ...s, status: e.payload.status }); set({ students: m });
   });
-  await listen<{ id: string; jpeg: string }>("frame", (e) => {
-    const url = `data:image/jpeg;base64,${e.payload.jpeg}`;
+  await listen<{ id: string }>("frame", (e) => {
+    const url = imgUrl("frame", e.payload.id);
     frameListeners.forEach((f) => f(e.payload.id, url));
   });
   await listen<{ batch: number; student: string; name: string; ok: boolean; error: string }>("file_done", (e) => {

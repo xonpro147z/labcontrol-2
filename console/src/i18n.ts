@@ -21,6 +21,10 @@ export function tr(key: string, ...args: unknown[]): string {
 }
 
 const EN: Record<string, string> = {
+  "Mở máy ({0} máy đang tắt)": "Power on ({0} computers off)",
+  "Mở máy (không có máy nào đang tắt)": "Power on (no computer is off)",
+  "Mở máy": "Power on",
+  "Đã gửi lệnh mở máy": "Power-on sent",
   "Quét mã bằng app ngân hàng hoặc MoMo, hoặc chuyển khoản:": "Scan with a banking app or MoMo, or transfer to:",
   "Chép số tài khoản": "Copy account number",
   "Báo lỗi": "Bug report",
