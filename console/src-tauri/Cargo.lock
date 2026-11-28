@@ -1992,7 +1992,7 @@ dependencies = [
 
 [[package]]
 name = "labcontrol-console"
-version = "3.4.0"
+version = "3.4.1"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

@@ -1,11 +1,11 @@
 import { tr } from "../i18n";
 import { useState, type ReactNode } from "react";
-import { Ban, Download, Gauge, Info, KeyRound, Laptop, Palette, RefreshCw, RotateCcw, Send } from "lucide-react";
+import { Ban, Copy, Download, Gauge, Heart, Info, KeyRound, Laptop, Mail, Palette, RefreshCw, RotateCcw, Send } from "lucide-react";
 import { LANGS, lang } from "../i18n";
 import { ACCENTS, WALLPAPERS } from "../theme";
 import { open } from "@tauri-apps/plugin-dialog";
 import { api, reload, setSettingsLocal, useStore, type Settings } from "../api";
-import { SOURCE_URL, VERSION } from "../components/About";
+import { AUTHOR, SOURCE_URL, VERSION } from "../components/About";
 import { Modal, Switch, errText, toast } from "../components/ui";
 
 const SECTIONS = (): { k: string; label: string; icon: ReactNode }[] => [
@@ -14,6 +14,7 @@ const SECTIONS = (): { k: string; label: string; icon: ReactNode }[] => [
   { k: "install", label: tr("Cài máy học sinh"), icon: <Laptop size={16} /> },
   { k: "lists", label: tr("Danh sách chặn"), icon: <Ban size={16} /> },
   { k: "perf", label: tr("Hình ảnh & tốc độ"), icon: <Gauge size={16} /> },
+  { k: "author", label: tr("Tác giả & góp ý"), icon: <Heart size={16} /> },
   { k: "about", label: tr("Giới thiệu"), icon: <Info size={16} /> },
 ];
 
@@ -138,8 +139,10 @@ export function SettingsModal({ initial, onClose }: { initial: string; onClose: 
               <input type="range" min={30} max={90} step={5} value={s.show_quality} onChange={(e) => up({ show_quality: +e.target.value })} />
               <span className="hint">{tr("Mạng yếu hoặc nhiều máy: giảm khung hình/giây và chất lượng.")}</span></div>
           </>}
+          {sec === "author" && <AuthorSection version={st.version || VERSION} />}
           {sec === "about" && <>
             <div><b>LabControl {st.version || VERSION}</b>{" "}{tr("– phần mềm quản lý phòng máy tính.")}</div>
+            <div>{tr("Tác giả:")}{" "}<b>{AUTHOR.name}</b>{" · "}<span className="mono">{AUTHOR.email}</span></div>
             <div className="small muted">{tr("Đây là")}{" "}<b>{tr("phần mềm tự do")}</b>{tr(": bạn được dùng, nghiên cứu, sửa đổi và chia sẻ theo Giấy phép Công cộng GNU Affero phiên bản 3 hoặc mới hơn (AGPL-3.0-or-later). Phần mềm được cung cấp")}{" "}<b>{tr("không kèm bất kỳ bảo đảm nào")}</b>.</div>
             <div className="field"><label>{tr("Mã nguồn")}</label><div className="code-box">{SOURCE_URL}</div>
               <button className="btn sm" style={{ alignSelf: "flex-start" }} onClick={() => copy(SOURCE_URL)}>{tr("Chép địa chỉ")}</button></div>
@@ -171,6 +174,62 @@ function pickLook(s: Settings): Partial<Settings> {
   return o as Partial<Settings>;
 }
 const DEFAULT_LOOK: Partial<Settings> = { theme_mode: "light", dark: false, accent: "#0a9d94", wallpaper: "aurora", glass: true, glass_level: 60, font_scale: 100, radius: "normal" };
+
+// ------------------------------------------------------------------ tác giả, góp ý, ủng hộ
+function AuthorSection({ version }: { version: string }) {
+  const [kind, setKind] = useState("Góp ý");
+  const [text, setText] = useState("");
+  const [who, setWho] = useState("");
+  const [qr, setQr] = useState(true);
+  const copy = (t: string) => navigator.clipboard.writeText(t).then(() => toast(tr("Đã chép")));
+  const body = () => `${text.trim()}\n\n---\n${tr("Người gửi")}: ${who.trim() || "—"}\nLabControl ${version} · ${navigator.platform}`;
+  const send = async () => {
+    if (!text.trim()) { toast(tr("Hãy viết nội dung góp ý"), "error"); return; }
+    try {
+      await api.openFeedbackMail(`[LabControl ${version}] ${tr(kind)}`, body());
+      toast(tr("Đã mở ứng dụng thư với nội dung góp ý. Hãy bấm Gửi trong thư."));
+    } catch (e) { toast(errText(e), "error"); }
+  };
+  return <>
+    <div className="author-card">
+      <div className="author-logo">LC</div>
+      <div>
+        <div className="small muted">{tr("LabControl được tạo và phát triển bởi")}</div>
+        <div className="author-name">{AUTHOR.name}</div>
+        <div className="row wrap" style={{ marginTop: 6 }}>
+          <span className="mono small">{AUTHOR.email}</span>
+          <button className="btn sm" onClick={() => copy(AUTHOR.email)}><Copy size={13} />{tr("Chép email")}</button>
+        </div>
+      </div>
+    </div>
+    <div className="small muted">{tr("Cần hỗ trợ cài đặt hoặc gặp lỗi khi dùng? Hãy gửi email cho tác giả, hoặc dùng ô góp ý bên dưới.")}</div>
+
+    <div className="field"><label>{tr("Góp ý cho tác giả")}</label>
+      <div className="row wrap">
+        {["Góp ý", "Báo lỗi", "Đề xuất tính năng", "Cần hỗ trợ"].map((k) =>
+          <button key={k} className={`btn sm ${kind === k ? "primary" : ""}`} onClick={() => setKind(k)}>{tr(k)}</button>)}
+      </div>
+      <textarea className="input" rows={5} value={text} onChange={(e) => setText(e.target.value)}
+                placeholder={tr("Bạn muốn LabControl tốt hơn ở điểm nào? Gặp lỗi gì, ở bước nào?")} />
+      <input className="input" value={who} onChange={(e) => setWho(e.target.value)} placeholder={tr("Tên, trường và cách liên lạc lại (không bắt buộc)")} />
+      <div className="row wrap">
+        <button className="btn primary" onClick={send}><Mail size={14} />{tr("Gửi góp ý")}</button>
+        <button className="btn" disabled={!text.trim()} onClick={() => copy(`${AUTHOR.email}\n\n${body()}`)}><Copy size={14} />{tr("Chép nội dung")}</button>
+      </div>
+      <span className="hint">{tr("Bấm “Gửi góp ý” sẽ mở ứng dụng thư trên máy (Outlook, Mail…) với thư đã điền sẵn, bạn chỉ cần bấm Gửi. Máy không có ứng dụng thư: bấm “Chép nội dung” rồi dán vào Gmail gửi tới")}{" "}<span className="mono">{AUTHOR.email}</span>.</span></div>
+
+    {(AUTHOR.momo || qr) && <div className="field"><label>{tr("Ủng hộ tác giả")}</label>
+      <div className="small muted">{tr("LabControl miễn phí. Nếu phần mềm giúp ích cho bạn, bạn có thể ủng hộ để tác giả có thêm thời gian phát triển các phiên bản sau. Cảm ơn bạn!")}</div>
+      <div className="donate">
+        {qr && <img src={AUTHOR.momoQr} alt="MoMo QR" onError={() => setQr(false)} />}
+        {AUTHOR.momo && <div className="col" style={{ gap: 6 }}>
+          <div><b className="momo">MoMo</b>{" "}<span className="mono">{AUTHOR.momo}</span></div>
+          {AUTHOR.momoName && <div className="small">{AUTHOR.momoName}</div>}
+          <button className="btn sm" style={{ alignSelf: "flex-start" }} onClick={() => copy(AUTHOR.momo)}><Copy size={13} />{tr("Chép số MoMo")}</button>
+        </div>}
+      </div></div>}
+  </>;
+}
 
 function LookSection({ s, look }: { s: Settings; look: (p: Partial<Settings>) => void }) {
   const en = lang() === "en";

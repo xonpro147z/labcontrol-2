@@ -328,3 +328,13 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; line-height
   display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; font-size: 10.5px; color: var(--text-2); }
 .wall.on { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
 
+
+/* ------------------------------------------------ tác giả & góp ý */
+.author-card { display: flex; gap: 16px; align-items: center; padding: 16px; border-radius: calc(14px * var(--rk, 1));
+  background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent); }
+.author-logo { width: 56px; height: 56px; flex: none; border-radius: calc(14px * var(--rk, 1)); display: grid; place-items: center;
+  background: var(--accent); color: var(--on-accent, #fff); font-weight: 700; font-size: 20px; letter-spacing: .02em; }
+.author-name { font-size: 20px; font-weight: 700; }
+.donate { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.donate img { width: 160px; height: 160px; object-fit: contain; border-radius: 12px; background: #fff; padding: 6px; box-shadow: 0 0 0 1px var(--line); }
+.momo { color: #a50064; }

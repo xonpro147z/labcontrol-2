@@ -204,6 +204,7 @@ Ghi lại trong buổi học:
 | Cài máy học sinh | Lệnh cài sẵn mật khẩu phòng để chép |
 | Danh sách chặn | Các trang web / ứng dụng hiện thành nút chọn nhanh |
 | Hình ảnh & tốc độ | Chu kỳ cập nhật ảnh, độ nét, khung hình/giây khi trình chiếu |
+| Tác giả & góp ý | Nút **Góp ý** ở thanh bên trái: thông tin tác giả, ô góp ý / báo lỗi gửi qua email, ủng hộ tác giả |
 | Nền tối | Nút cuối thanh bên trái |
 
 ## 7. Cập nhật phần mềm

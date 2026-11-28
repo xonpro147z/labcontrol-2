@@ -188,6 +188,8 @@ pub struct UpdateInfo {
 }
 
 pub const REPO: &str = "xonpro147z/labcontrol-2";
+/// Email tác giả (nhận góp ý, hỗ trợ)
+pub const AUTHOR_EMAIL: &str = "hngo0131@gmail.com";
 
 struct Show {
     stop: Arc<AtomicBool>,

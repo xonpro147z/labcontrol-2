@@ -80,6 +80,7 @@ export const api = {
   checkUpdate: () => invoke<UpdateInfo>("check_update"),
   pushUpdate: (ids: string[], file: string | null) => invoke<number>("push_update", { ids, file }),
   openRelease: (url: string) => invoke("open_release", { url }),
+  openFeedbackMail: (subject: string, body: string) => invoke("open_feedback_mail", { subject, body }),
 };
 
 // ------------------------------------------------------------------ kho dữ liệu dùng chung

@@ -2,6 +2,12 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.4.1] – 2026-11-28
+### Thêm
+- Mục **Tác giả & góp ý** (nút **Góp ý** ở thanh bên trái): tên tác giả Ngô Văn Hưng, email liên hệ hỗ trợ,
+  ô góp ý / báo lỗi / đề xuất tính năng (mở ứng dụng thư với nội dung điền sẵn), và thông tin ủng hộ tác giả qua MoMo.
+- Trang Giới thiệu và README ghi tên tác giả.
+
 ## [3.4.0] – 2026-11-28
 ### Bỏ
 - Bỏ ảnh/video nền màn hình khóa (gây mất kết nối ở phòng nhiều máy). Máy giáo viên và máy học sinh tự xóa dữ liệu cũ.

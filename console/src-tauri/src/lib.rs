@@ -174,6 +174,26 @@ fn push_update(h: H<'_>, ids: Vec<String>, file: Option<String>) -> Result<usize
     h.push_update(&ids, file).map_err(|e| e.to_string())
 }
 
+/// Mở ứng dụng thư (Outlook, Mail, Thunderbird...) với thư góp ý gửi tác giả, nội dung đã điền sẵn
+#[tauri::command]
+fn open_feedback_mail(subject: String, body: String) -> Result<(), String> {
+    fn enc(s: &str) -> String {
+        s.bytes().map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            _ => format!("%{b:02X}"),
+        }).collect()
+    }
+    let body: String = body.chars().take(1500).collect();
+    let url = format!("mailto:{}?subject={}&body={}", hub::AUTHOR_EMAIL, enc(&subject), enc(&body));
+    #[cfg(windows)]
+    let r = std::process::Command::new("rundll32").args(["url.dll,FileProtocolHandler", &url]).spawn();
+    #[cfg(target_os = "macos")]
+    let r = std::process::Command::new("open").arg(&url).spawn();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let r = std::process::Command::new("xdg-open").arg(&url).spawn();
+    r.map(|_| ()).map_err(|e| e.to_string())
+}
+
 /// Chỉ mở trang của dự án trên GitHub
 #[tauri::command]
 fn open_release(url: String) -> Result<(), String> {
@@ -223,7 +243,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_state, set_settings, push_password, remove_student, dismiss_pending, set_seat, auto_seats, set_label,
             send_ctrl, input, set_policy, clear_override, send_files, start_show, stop_show, assign, collect, delete_task, open_task_dir,
-            quiz_start, quiz_stop, open_quiz_csv, check_update, push_update, open_release
+            quiz_start, quiz_stop, open_quiz_csv, check_update, push_update, open_release, open_feedback_mail
         ])
         .run(tauri::generate_context!())
         .expect("không khởi động được LabControl");

@@ -2,7 +2,7 @@ import { setLang, tr } from "./i18n";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { glassLevel, resolveMode, themeStyle } from "./theme";
 import { useEffect, useState } from "react";
-import { ClipboardList, History, LayoutGrid, Monitor, Moon, Settings as SettingsIcon, Sun } from "lucide-react";
+import { ClipboardList, Heart, History, LayoutGrid, Monitor, Moon, Settings as SettingsIcon, Sun } from "lucide-react";
 import { api, infos, notices, setSettingsLocal, startStore, useStore } from "./api";
 import { Spinner, toast, Toasts } from "./components/ui";
 import { Transfers } from "./components/Transfers";
@@ -61,7 +61,8 @@ export function App() {
           <ClipboardList size={21} />{tr("Bài & kiểm tra")}{quiz?.running && <span className="badge-n">●</span>}</button>
         <button className={page === "log" ? "active" : ""} onClick={() => setPage("log")}><History size={21} />{tr("Nhật ký")}</button>
         <button onClick={() => setSettingsOpen("look")}><SettingsIcon size={21} />{tr("Cài đặt")}</button>
-        <button className="bottom" onClick={toggleDark}>{dark ? <Sun size={20} /> : <Moon size={20} />}{dark ? tr("Nền sáng") : tr("Nền tối")}</button>
+        <button className="bottom" onClick={() => setSettingsOpen("author")} title={tr("Tác giả, góp ý và ủng hộ")}><Heart size={20} />{tr("Góp ý")}</button>
+        <button onClick={toggleDark}>{dark ? <Sun size={20} /> : <Moon size={20} />}{dark ? tr("Nền sáng") : tr("Nền tối")}</button>
       </nav>
       <main className="main">
         {page === "class" && <Classroom openSettings={(s) => setSettingsOpen(s)} goTasks={() => setPage("tasks")} />}

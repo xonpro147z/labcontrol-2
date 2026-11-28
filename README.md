@@ -114,3 +114,14 @@ LabControl là phần mềm tự do: bạn có thể phân phối lại và/ho�
 - Không ai được đóng mã LabControl lại để bán như phần mềm độc quyền.
 
 Thư viện bên thứ ba: [THIRD-PARTY.md](THIRD-PARTY.md).
+
+## Tác giả
+
+**LabControl** được tạo và phát triển bởi **Ngô Văn Hưng**.
+
+- Liên hệ, hỗ trợ: **hngo0131@gmail.com**
+- Góp ý, báo lỗi, đề xuất tính năng: trong phần mềm chọn **Góp ý** (thanh bên trái), hoặc gửi email.
+- Ủng hộ tác giả phát triển các phiên bản sau: xem mục **Tác giả & góp ý** trong phần mềm.
+
+Nếu bạn dùng lại hoặc phát triển tiếp LabControl, hãy giữ tên tác giả và giấy phép AGPL-3.0-or-later.
+
