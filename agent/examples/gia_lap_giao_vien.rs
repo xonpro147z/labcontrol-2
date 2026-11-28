@@ -99,7 +99,22 @@ async fn main() -> anyhow::Result<()> {
             "status" => Ctrl::GetStatus,
             "thumb" => Ctrl::GetThumb { width: 320, quality: 60 },
             "msg" => Ctrl::Message { text: arg.into() },
-            "lock" => Ctrl::Lock { message: "Nhìn lên bảng".into() },
+            "lock" => Ctrl::Lock { message: "Nhìn lên bảng".into(), media: String::new() },
+            "lockm" => Ctrl::Lock { message: "Nhìn lên bảng".into(), media: arg.into() },
+            "media" => {
+                // gói các file JPEG (cách nhau bằng dấu phẩy) thành ảnh/video nền màn hình khóa
+                let frames: Vec<Vec<u8>> = arg.split(',').map(std::fs::read).collect::<Result<_, _>>()?;
+                let data = lc_core::lockmedia::pack(if frames.len() > 1 { 4 } else { 0 }, &frames);
+                let sha = auth::sha256_hex(&data);
+                println!("media sha = {sha}");
+                proto::write_ctrl(&mut wr, &Ctrl::LockMedia { id: 98, sha256: sha, size: data.len() as u64 }).await?;
+                for c in data.chunks(65536) {
+                    let mut b = 98u64.to_be_bytes().to_vec();
+                    b.extend_from_slice(c);
+                    proto::write_frame(&mut wr, K_FILE, &b).await?;
+                }
+                Ctrl::LockMediaEnd { id: 98 }
+            }
             "unlock" => Ctrl::Unlock,
             "assign" => Ctrl::Assign { task: "t1".into(), title: arg.into(), text: "Viết chương trình tính tổng 1..n".into() },
             "collect" => Ctrl::Collect { task: "t1".into(), title: arg.into() },

@@ -13,9 +13,9 @@ import { Viewer } from "./Viewer";
 
 type Tab = "all" | "online" | "offline" | "pending";
 type View = "grid" | "plan" | "list";
-type MenuKind = "lock" | "show" | "web" | "apps" | "power" | "ctx" | "send";
+type MenuKind = "show" | "web" | "apps" | "power" | "ctx" | "send";
 type Dlg =
-  | { k: "message" } | { k: "lock" } | { k: "url" } | { k: "run" } | { k: "assign" } | { k: "close" } | { k: "rename"; s: Student }
+  | { k: "message" } | { k: "url" } | { k: "run" } | { k: "assign" } | { k: "close" } | { k: "rename"; s: Student }
   | { k: "confirm"; title: string; text: ReactNode; danger?: boolean; ok: string; run: () => Promise<unknown> | void };
 
 function natural(a: string, b: string) {
@@ -62,6 +62,14 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
   const targets = (chosen.length ? chosen : online).map((s) => s.id);
   const targetNote = chosen.length ? tr("Áp dụng cho {0} máy đã chọn", chosen.length) : tr("Áp dụng cho cả lớp ({0} máy)", online.length);
   const anyLocked = online.some((s) => s.status?.locked);
+  // Khóa ngay, không hỏi lại. Mọi máy đang chọn (hoặc cả lớp) đã khóa thì bấm lần nữa để mở khóa.
+  const tgtStudents = chosen.length ? chosen : online;
+  const allLocked = tgtStudents.length > 0 && tgtStudents.every((s) => s.status?.locked);
+  const lockMsg = () => ({ t: "lock" as const, message: settings?.lock_message?.trim() || tr("Hãy chú ý lên giáo viên"),
+                           media: settings?.lock_media?.sha || "" });
+  const lockNow = (ids: string[], name?: string) => run(name ? tr("Đã khóa {0}", name) : tr("Đã khóa"), () => api.send(ids, lockMsg()));
+  const unlockNow = (ids: string[], name?: string) => run(name ? tr("Đã mở khóa {0}", name) : tr("Đã mở khóa"), () => api.send(ids, { t: "unlock" }));
+  const toggleLock = () => { if (!needOnline()) return; if (allLocked) unlockNow(targets); else lockNow(targets); };
   const isFree = (p: Policy) => JSON.stringify({ ...NO_POLICY, ...p }) === JSON.stringify(NO_POLICY);
   const nOverride = Object.keys(overrides).length;
   const policyOn = !isFree(policy) || Object.values(overrides).some((p) => !isFree(p));
@@ -83,7 +91,36 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
     return true;
   };
   const setPol = (p: Policy, label: string) => run(label, () => api.setPolicy(p, scopeIds));
-  const toggle = (id: string) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const toggle = (id: string) => { anchor.current = id; setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; }); };
+  // Bấm: chọn một máy (bấm lại để bỏ chọn). Ctrl/⌘ + bấm: thêm/bớt máy. Shift + bấm: chọn một dải máy.
+  const anchor = useRef<string | null>(null);
+  const pick = (id: string, e: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => {
+    if (e.shiftKey && anchor.current) {
+      const ids = list.map((s) => s.id);
+      const a = ids.indexOf(anchor.current), b = ids.indexOf(id);
+      if (a >= 0 && b >= 0) {
+        const range = ids.slice(Math.min(a, b), Math.max(a, b) + 1);
+        setSel((s) => new Set([...(e.ctrlKey || e.metaKey ? s : []), ...range]));
+        return;
+      }
+    }
+    if (e.ctrlKey || e.metaKey) return toggle(id);
+    anchor.current = id;
+    setSel((s) => s.size === 1 && s.has(id) ? new Set() : new Set([id]));
+  };
+  const selectAll = () => setSel(new Set(list.map((s) => s.id)));
+  // Ctrl/⌘ + A: chọn tất cả máy; Esc: bỏ chọn
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.closest("input, textarea, select, [contenteditable=true]") || t.closest(".modal, .menu"))) return;
+      if (viewer || document.querySelector(".modal")) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") { e.preventDefault(); selectAll(); }
+      else if (e.key === "Escape" && !menu) setSel(new Set());
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
   const allSelected = list.length > 0 && list.every((s) => sel.has(s.id));
   const openMenu = (k: MenuKind) => (e: React.MouseEvent<HTMLElement>) => setMenu({ k, a: e.currentTarget });
 
@@ -100,7 +137,7 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
       toast(tr("Đang gửi {0} file tới {1} máy", b.files, b.machines));
     } catch (e) { toast(errText(e), "error"); }
   };
-  const pick = async (directory: boolean) => {
+  const pickFiles = async (directory: boolean) => {
     setMenu(null);
     if (!needOnline()) return;
     const p = await open({ multiple: true, directory, title: directory ? tr("Chọn thư mục gửi cho học sinh") : tr("Chọn file gửi cho học sinh") });
@@ -151,7 +188,8 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
       </div>
 
       <div className="toolbar">
-        {tool(anyLocked ? <Lock size={18} /> : <Lock size={18} />, tr("Khóa máy"), openMenu("lock"), { on: anyLocked, tone: "err", caret: true })}
+        {tool(allLocked ? <Unlock size={18} /> : <Lock size={18} />, allLocked ? tr("Mở khóa") : tr("Khóa máy"), toggleLock,
+              { on: anyLocked, tone: "err", title: allLocked ? tr("Mở khóa {0}", scopeLabel) : tr("Khóa {0} ngay (chữ và ảnh nền đặt trong Cài đặt › Màn hình khóa)", scopeLabel) })}
         {tool(<Cast size={18} />, tr("Trình chiếu"), openMenu("show"), { on: showing, caret: true })}
         {tool(<MessageSquare size={18} />, tr("Tin nhắn"), () => needOnline() && setDlg({ k: "message" }))}
         {tool(<FileUp size={18} />, tr("Gửi file"), openMenu("send"), { caret: true })}
@@ -194,8 +232,8 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
       )}
 
       <div className="filters">
-        <input type="checkbox" className="check" title={tr("Chọn tất cả")} checked={allSelected}
-               onChange={() => setSel(allSelected ? new Set() : new Set(list.map((s) => s.id)))} />
+        <input type="checkbox" className="check" checked={allSelected}
+               onChange={() => allSelected ? setSel(new Set()) : selectAll()} title={tr("Chọn tất cả (Ctrl+A)")} />
         <div className="tabs">
           <button className={tab === "all" ? "active" : ""} onClick={() => setTab("all")}>{tr("Tất cả")}<b>{all.length}</b></button>
           <button className={tab === "online" ? "active" : ""} onClick={() => setTab("online")}>{tr("Trực tuyến")}<b>{online.length}</b></button>
@@ -226,14 +264,14 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
           view === "grid" ? (
             list.length === 0 ? <Empty icon={<Search size={22} />} title={tr("Không có máy nào khớp")} /> :
               <div className="grid">{list.map((s) => <Tile key={s.id} s={s} thumb={thumbs.get(s.id)} sel={sel.has(s.id)}
-                onClick={() => toggle(s.id)} onOpen={() => s.state === "online" && setViewer(s)} onCtx={ctxMenu(s)} />)}</div>
+                onClick={(e) => pick(s.id, e)} onCheck={() => toggle(s.id)} onOpen={() => s.state === "online" && setViewer(s)} onCtx={ctxMenu(s)} />)}</div>
           ) : view === "plan" ? (
-            <SeatPlan list={list} sel={sel} thumbs={thumbs} toggle={toggle} open={(s) => s.state === "online" && setViewer(s)} ctx={ctxMenu} />
+            <SeatPlan list={list} sel={sel} thumbs={thumbs} toggle={toggle} pick={pick} open={(s) => s.state === "online" && setViewer(s)} ctx={ctxMenu} />
           ) : (
             <table className="table">
               <thead><tr><th style={{ width: 34 }} /><th>{tr("Máy")}</th><th>{tr("Học sinh")}</th><th>{tr("Trạng thái")}</th><th>{tr("Đang dùng")}</th><th>{tr("Địa chỉ")}</th><th>{tr("Phiên bản")}</th></tr></thead>
               <tbody>{list.map((s) => (
-                <tr key={s.id} className={`click ${sel.has(s.id) ? "sel" : ""}`} onClick={() => toggle(s.id)} onDoubleClick={() => s.state === "online" && setViewer(s)} onContextMenu={ctxMenu(s)}>
+                <tr key={s.id} className={`click ${sel.has(s.id) ? "sel" : ""}`} onClick={(e) => pick(s.id, e)} onDoubleClick={() => s.state === "online" && setViewer(s)} onContextMenu={ctxMenu(s)}>
                   <td><input type="checkbox" className="check" checked={sel.has(s.id)} onChange={() => toggle(s.id)} onClick={(e) => e.stopPropagation()} /></td>
                   <td><b>{displayName(s)}</b>{s.label && <div className="small faint">{s.info.name}</div>}</td>
                   <td>{s.status?.user || s.info.user || "—"}</td>
@@ -248,14 +286,9 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
       </div>
 
       {/* ------------------------------------------------ menu */}
-      {menu?.k === "lock" && <Menu anchor={menu.a} onClose={() => setMenu(null)}>
-        <button onClick={() => { setMenu(null); if (needOnline()) setDlg({ k: "lock" }); }}><Lock size={16} />{tr("Khóa màn hình...")}</button>
-        <button onClick={() => { setMenu(null); if (needOnline()) run(tr("Đã mở khóa"), () => api.send(targets, { t: "unlock" })); }}><Unlock size={16} />{tr("Mở khóa")}</button>
-        <hr /><div className="mh">{targetNote}</div>
-      </Menu>}
       {menu?.k === "send" && <Menu anchor={menu.a} onClose={() => setMenu(null)}>
-        <button onClick={() => pick(false)}><FileUp size={16} />{tr("Gửi file...")}</button>
-        <button onClick={() => pick(true)}><FolderUp size={16} />{tr("Gửi cả thư mục...")}</button>
+        <button onClick={() => pickFiles(false)}><FileUp size={16} />{tr("Gửi file...")}</button>
+        <button onClick={() => pickFiles(true)}><FolderUp size={16} />{tr("Gửi cả thư mục...")}</button>
         <hr /><div className="mh">{tr("Hoặc kéo file từ máy tính thả vào cửa sổ này")}</div>
         <div className="mh" style={{ textTransform: "none", letterSpacing: 0, paddingTop: 0 }}>{targetNote}{tr(". Học sinh nhận ở thư mục TuGiaoVien trên màn hình nền.")}</div>
       </Menu>}
@@ -283,13 +316,29 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
           <div className="mh">{displayName(s)}</div>
           {on && <>
             <button onClick={() => { setMenu(null); setViewer(s); }}><Eye size={16} />{tr("Xem / điều khiển")}</button>
-            <button onClick={() => { setMenu(null); api.send(id, { t: "lock", message: tr("Hãy chú ý lên giáo viên") }); }}><Lock size={16} />{tr("Khóa")}</button>
-            <button onClick={() => { setMenu(null); api.send(id, { t: "unlock" }); }}><Unlock size={16} />{tr("Mở khóa")}</button>
+            {s.status?.locked
+              ? <button onClick={() => { setMenu(null); unlockNow(id, displayName(s)); }}><Unlock size={16} />{tr("Mở khóa")}</button>
+              : <button onClick={() => { setMenu(null); lockNow(id, displayName(s)); }}><Lock size={16} />{tr("Khóa máy")}</button>}
             <button onClick={() => { setMenu(null); setSel(new Set(id)); setDlg({ k: "message" }); }}><MessageSquare size={16} />{tr("Gửi tin nhắn")}</button>
+            <button onClick={() => { setMenu(null); setSel(new Set(id)); setDlg({ k: "url" }); }}><Globe size={16} />{tr("Mở trang web…")}</button>
+            <button onClick={() => { setMenu(null); setSel(new Set(id)); setDlg({ k: "run" }); }}><Rocket size={16} />{tr("Mở ứng dụng…")}</button>
           </>}
           {on && s.info.version !== st.version && <button onClick={() => { setMenu(null); askUpdate([s]); }}><RefreshCw size={16} />{tr("Cập nhật phần mềm (")}{s.info.version || "?"} → {st.version})</button>}
+          {on && (() => {
+            // bỏ chặn riêng từng thứ cho máy này (các máy khác giữ nguyên)
+            const p = { ...NO_POLICY, ...effOf(s.id) };
+            const one = (np: Policy, label: string) => { setMenu(null); run(label, () => api.setPolicy(np, [s.id])); };
+            const n = displayName(s);
+            const items = [
+              p.block_web.length > 0 && <button key="w" onClick={() => one({ ...p, block_web: [] }, tr("Đã mở web cho {0}", n))}><Globe size={16} />{tr("Mở web cho máy này")}</button>,
+              (p.block_apps.length > 0 || p.block_tools) && !p.exam && <button key="a" onClick={() => one({ ...p, block_apps: [], block_tools: false }, tr("Đã bỏ chặn ứng dụng cho {0}", n))}><AppWindow size={16} />{tr("Bỏ chặn ứng dụng cho máy này")}</button>,
+              p.mute && <button key="m" onClick={() => one({ ...p, mute: false }, tr("Đã bật tiếng cho {0}", n))}><Volume2 size={16} />{tr("Bật tiếng cho máy này")}</button>,
+              p.exam && <button key="e" onClick={() => one({ ...p, exam: false }, tr("Đã tắt chế độ thi cho {0}", n))}><ShieldAlert size={16} />{tr("Tắt chế độ thi cho máy này")}</button>,
+            ].filter(Boolean);
+            return items.length ? <><hr />{items}</> : null;
+          })()}
           {on && !isFree(effOf(s.id)) && <button onClick={() => { setMenu(null); run(tr("Đã bỏ giới hạn cho {0}", displayName(s)), () => api.setPolicy(NO_POLICY, [s.id])); }}>
-            <ShieldOff size={16} />{tr("Bỏ giới hạn cho máy này")}</button>}
+            <ShieldOff size={16} />{tr("Bỏ mọi giới hạn cho máy này")}</button>}
           {on && overrides[s.id] && <button onClick={() => { setMenu(null); run(tr("{0} dùng lại giới hạn chung", displayName(s)), () => api.clearOverride([s.id])); }}>
             <ShieldCheck size={16} />{tr("Dùng giới hạn chung của lớp")}</button>}
           <button onClick={() => { setMenu(null); setDlg({ k: "rename", s }); }}><Pencil size={16} />{tr("Đặt tên hiển thị")}</button>
@@ -302,8 +351,6 @@ export function Classroom({ openSettings, goTasks }: { openSettings: (section: s
       {/* ------------------------------------------------ hộp thoại */}
       {dlg?.k === "message" && <TextDialog title={tr("Gửi tin nhắn")} label={tr("Nội dung")} note={targetNote} multiline ok={tr("Gửi")}
         onClose={() => setDlg(null)} onOk={(t) => run(tr("Đã gửi tin nhắn"), () => api.send(targets, { t: "message", text: t }))} />}
-      {dlg?.k === "lock" && <TextDialog title={tr("Khóa màn hình học sinh")} label={tr("Dòng chữ trên màn hình khóa")} initial={tr("Hãy chú ý lên giáo viên")}
-        note={targetNote} ok={tr("Khóa")} onClose={() => setDlg(null)} onOk={(t) => run(tr("Đã khóa"), () => api.send(targets, { t: "lock", message: t }))} />}
       {dlg?.k === "url" && <TextDialog title={tr("Mở trang web trên máy học sinh")} label={tr("Địa chỉ")} initial="https://" note={targetNote} ok={tr("Mở")}
         onClose={() => setDlg(null)} onOk={(t) => {
           const url = /^https?:\/\//.test(t) ? t : `https://${t}`;
@@ -345,8 +392,8 @@ function Flags({ s }: { s: Student }) {
   </>;
 }
 
-function Tile({ s, thumb, sel, onClick, onOpen, onCtx, onGrab }: {
-  s: Student; thumb?: string; sel: boolean; onClick: () => void; onOpen: () => void; onCtx: (e: React.MouseEvent) => void;
+function Tile({ s, thumb, sel, onClick, onCheck, onOpen, onCtx, onGrab }: {
+  s: Student; thumb?: string; sel: boolean; onClick: (e: React.MouseEvent) => void; onCheck: () => void; onOpen: () => void; onCtx: (e: React.MouseEvent) => void;
   onGrab?: (e: React.PointerEvent) => void;
 }) {
   const on = s.state === "online";
@@ -357,7 +404,7 @@ function Tile({ s, thumb, sel, onClick, onOpen, onCtx, onGrab }: {
       <div className="shot">
         {on && thumb ? <img src={thumb} alt="" draggable={false} /> : <div className="ph">{on ? <div className="spinner" /> : <MonitorOff size={26} />}</div>}
         <div className="flags"><Flags s={s} /></div>
-        <input type="checkbox" className="check ck" checked={sel} onChange={onClick} onClick={(e) => e.stopPropagation()} />
+        <input type="checkbox" className="check ck" checked={sel} onChange={onCheck} onClick={(e) => e.stopPropagation()} />
       </div>
       <div className="meta">
         <span className={`dot ${on ? "on" : ""}`} />
@@ -373,8 +420,9 @@ function Tile({ s, thumb, sel, onClick, onOpen, onCtx, onGrab }: {
 }
 
 // ------------------------------------------------------------------ sơ đồ phòng
-function SeatPlan({ list, sel, thumbs, toggle, open, ctx }: {
-  list: Student[]; sel: Set<string>; thumbs: Map<string, string>; toggle: (id: string) => void; open: (s: Student) => void;
+function SeatPlan({ list, sel, thumbs, toggle, pick, open, ctx }: {
+  list: Student[]; sel: Set<string>; thumbs: Map<string, string>; toggle: (id: string) => void;
+  pick: (id: string, e: React.MouseEvent) => void; open: (s: Student) => void;
   ctx: (s: Student) => (e: React.MouseEvent) => void;
 }) {
   const { settings } = useStore();
@@ -438,14 +486,14 @@ function SeatPlan({ list, sel, thumbs, toggle, open, ctx }: {
           const c = i % cols, r = Math.floor(i / cols), k = `${c},${r}`;
           const s = placed.get(k);
           return <div key={k} data-drop={k} className={`seat ${over === k ? "over" : ""}`}>
-            {s && <Tile s={s} thumb={thumbs.get(s.id)} sel={sel.has(s.id)} onClick={() => toggle(s.id)} onOpen={() => open(s)} onCtx={ctx(s)} onGrab={grab(s)} />}
+            {s && <Tile s={s} thumb={thumbs.get(s.id)} sel={sel.has(s.id)} onClick={(e) => pick(s.id, e)} onCheck={() => toggle(s.id)} onOpen={() => open(s)} onCtx={ctx(s)} onGrab={grab(s)} />}
           </div>;
         })}
       </div>
       <div data-drop="tray" className={`tray ${over === "tray" ? "over" : ""}`}>
         <div className="small muted" style={{ marginBottom: 8 }}>{tr("Chưa xếp chỗ (")}{unplaced.length}{tr(") – kéo lên sơ đồ")}</div>
         {unplaced.length ? <div className="grid">{unplaced.map((s) => <Tile key={s.id} s={s} thumb={thumbs.get(s.id)} sel={sel.has(s.id)}
-          onClick={() => toggle(s.id)} onOpen={() => open(s)} onCtx={ctx(s)} onGrab={grab(s)} />)}</div> : <div className="small faint">{tr("Mọi máy đã có chỗ.")}</div>}
+          onClick={(e) => pick(s.id, e)} onCheck={() => toggle(s.id)} onOpen={() => open(s)} onCtx={ctx(s)} onGrab={grab(s)} />)}</div> : <div className="small faint">{tr("Mọi máy đã có chỗ.")}</div>}
       </div>
       {drag && <div className="drag-ghost" style={{ left: drag.x + 12, top: drag.y + 12 }}>{drag.name}</div>}
     </div>

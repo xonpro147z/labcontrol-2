@@ -80,6 +80,25 @@ pub struct Settings {
     pub radius: String,
     /// Số cột của sơ đồ phòng
     pub seat_cols: u32,
+    /// Dòng chữ trên màn hình khóa
+    pub lock_message: String,
+    /// Ảnh/video nền màn hình khóa (do máy giáo viên quản lý, không sửa qua set_settings)
+    pub lock_media: LockMedia,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct LockMedia {
+    /// sha256 của gói (trống = không dùng)
+    pub sha: String,
+    /// "image" | "video"
+    pub kind: String,
+    pub name: String,
+    pub fps: u16,
+    pub frames: u32,
+    pub size: u64,
+    /// ảnh xem trước nhỏ (data URL JPEG)
+    pub thumb: String,
 }
 
 impl Default for Settings {
@@ -94,6 +113,7 @@ impl Default for Settings {
             run_list: vec![],
             dark: false, glass: true, lang: "vi".into(), theme_mode: String::new(), accent: "#0a9d94".into(),
             wallpaper: "aurora".into(), glass_level: 60, font_scale: 100, radius: "normal".into(), seat_cols: 6,
+            lock_message: "Hãy chú ý lên giáo viên".into(), lock_media: LockMedia::default(),
         }
     }
 }
@@ -121,6 +141,8 @@ pub struct Student {
     pub status: RwLock<Option<Status>>,
     pub tx: Mutex<Option<(u64, Tx)>>,
     pub streaming: AtomicBool,
+    /// sha ảnh/video nền màn hình khóa đã gửi (hoặc đang gửi) cho máy này
+    pub media_sent: Mutex<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -286,7 +308,7 @@ impl Hub {
                 id: id.clone(), addr: RwLock::new(m.ip.clone()),
                 info: RwLock::new(AgentInfo { id: id.clone(), name: m.name.clone(), ..Default::default() }),
                 online: AtomicBool::new(false), status: RwLock::new(None), tx: Mutex::new(None),
-                streaming: AtomicBool::new(false),
+                streaming: AtomicBool::new(false), media_sent: Mutex::new(String::new()),
             }))
         }).collect();
         Ok(Arc::new(Hub {
@@ -310,6 +332,8 @@ impl Hub {
         if s.room_password.trim().chars().count() < 4 {
             bail!("{}", l!("Mật khẩu phòng phải có ít nhất 4 ký tự", "The room password must have at least 4 characters"));
         }
+        let mut s = s;
+        s.lock_media = self.settings.read().unwrap().lock_media.clone();
         write_json(&self.dir.join("settings.json"), &s)?;
         let lang_changed = self.settings.read().unwrap().lang != s.lang;
         LANG_EN.store(s.lang == "en", Ordering::Relaxed);
@@ -469,6 +493,103 @@ impl Hub {
 
     /// Gửi Agent mới tới các máy. `custom`: file Agent giáo viên tự chọn (thay cho bản đi kèm).
     /// Trả về số máy được gửi.
+    // -------------------------------------------------------------- ảnh/video nền màn hình khóa
+    fn lock_media_path(&self) -> PathBuf {
+        self.dir.join("lock-media.lcm")
+    }
+
+    /// Lưu ảnh/video nền màn hình khóa. `frames`: các khung JPEG (base64), `fps` = 0 nếu là ảnh.
+    pub fn set_lock_media(self: &Arc<Self>, kind: String, name: String, fps: u16, frames: Vec<String>, thumb: String) -> Result<LockMedia> {
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::STANDARD;
+        let raw: Vec<Vec<u8>> = frames.iter()
+            .map(|f| b64.decode(f.rsplit(',').next().unwrap_or(f)).map_err(|e| anyhow!("{e}")))
+            .collect::<Result<_>>()?;
+        if raw.is_empty() || raw.len() > lc_core::lockmedia::MAX_FRAMES {
+            bail!("{}", l!("Số khung hình không hợp lệ", "Invalid number of frames"));
+        }
+        if raw.iter().any(|f| lc_core::img::decode_rgba(f).is_err()) {
+            bail!("{}", l!("Khung hình không phải JPEG hợp lệ", "A frame is not a valid JPEG"));
+        }
+        let pack = lc_core::lockmedia::pack(if raw.len() > 1 { fps.clamp(1, 30) } else { 0 }, &raw);
+        if pack.len() as u64 > lc_core::lockmedia::MAX_SIZE {
+            bail!("{}", l!("Video quá lớn, hãy chọn đoạn ngắn hơn", "The video is too large, choose a shorter clip"));
+        }
+        std::fs::write(self.lock_media_path(), &pack)?;
+        let info = LockMedia {
+            sha: auth::sha256_hex(&pack), kind, name, fps: if raw.len() > 1 { fps } else { 0 }, frames: raw.len() as u32,
+            size: pack.len() as u64, thumb,
+        };
+        self.store_lock_media(info.clone())?;
+        Ok(info)
+    }
+
+    pub fn clear_lock_media(self: &Arc<Self>) -> Result<()> {
+        let _ = std::fs::remove_file(self.lock_media_path());
+        self.store_lock_media(LockMedia::default())
+    }
+
+    fn store_lock_media(self: &Arc<Self>, info: LockMedia) -> Result<()> {
+        let s = {
+            let mut s = self.settings.write().unwrap();
+            s.lock_media = info;
+            s.clone()
+        };
+        write_json(&self.dir.join("settings.json"), &s)?;
+        let _ = self.app.emit("settings", &s);
+        // gửi trước cho các máy đang trực tuyến, để lúc khóa máy hiện ngay
+        let list: Vec<Arc<Student>> = self.students.lock().unwrap().values().filter(|s| s.online.load(Ordering::Relaxed)).cloned().collect();
+        for st in list {
+            st.media_sent.lock().unwrap().clear();
+            let have = st.status.read().unwrap().as_ref().map(|x| x.lock_media.clone()).unwrap_or_default();
+            self.push_lock_media(&st, &have);
+        }
+        Ok(())
+    }
+
+    /// Gửi ảnh/video nền màn hình khóa nếu máy học sinh chưa có. `have`: sha máy đó đang giữ.
+    fn push_lock_media(self: &Arc<Self>, st: &Arc<Student>, have: &str) {
+        let sha = self.settings.read().unwrap().lock_media.sha.clone();
+        if sha.is_empty() || have == sha {
+            return;
+        }
+        let ver = st.info.read().unwrap().version.clone();
+        if auth::version_newer("3.3.0", &ver) {
+            return; // Agent cũ chưa biết nhận ảnh nền
+        }
+        {
+            let mut m = st.media_sent.lock().unwrap();
+            if *m == sha {
+                return; // đã gửi hoặc đang gửi
+            }
+            *m = sha.clone();
+        }
+        let Ok(data) = std::fs::read(self.lock_media_path()) else { return };
+        if auth::sha256_hex(&data) != sha {
+            return;
+        }
+        let Some(tx) = st.tx() else { return };
+        let id = self.file_seq.fetch_add(1, Ordering::Relaxed);
+        let st = st.clone();
+        tauri::async_runtime::spawn(async move {
+            let r: Result<()> = async {
+                let begin = Ctrl::LockMedia { id, sha256: sha, size: data.len() as u64 };
+                tx.send((K_CTRL, Arc::new(proto::ctrl_bytes(&begin)))).await?;
+                for chunk in data.chunks(256 * 1024) {
+                    let mut c = Vec::with_capacity(chunk.len() + 8);
+                    c.extend_from_slice(&id.to_be_bytes());
+                    c.extend_from_slice(chunk);
+                    tx.send((K_FILE, Arc::new(c))).await?;
+                }
+                tx.send((K_CTRL, Arc::new(proto::ctrl_bytes(&Ctrl::LockMediaEnd { id })))).await?;
+                Ok(())
+            }.await;
+            if r.is_err() {
+                st.media_sent.lock().unwrap().clear();
+            }
+        });
+    }
+
     pub fn push_update(self: &Arc<Self>, ids: &[String], custom: Option<String>) -> Result<usize> {
         let version = env!("CARGO_PKG_VERSION").to_string();
         let custom = custom.map(PathBuf::from);
@@ -662,7 +783,7 @@ impl Hub {
             map.entry(id.clone()).or_insert_with(|| Arc::new(Student {
                 id: id.clone(), addr: RwLock::new(String::new()), info: RwLock::new(AgentInfo::default()),
                 online: AtomicBool::new(false), status: RwLock::new(None), tx: Mutex::new(None),
-                streaming: AtomicBool::new(false),
+                streaming: AtomicBool::new(false), media_sent: Mutex::new(String::new()),
             })).clone()
         };
         *st.info.write().unwrap() = info;
@@ -672,6 +793,7 @@ impl Hub {
         *st.tx.lock().unwrap() = Some((conn, tx.clone())); // phiên cũ (nếu còn) mất kênh gửi và tự đóng
         st.online.store(true, Ordering::Relaxed);
         st.streaming.store(false, Ordering::Relaxed);
+        st.media_sent.lock().unwrap().clear(); // chờ trạng thái đầu tiên để biết máy đã có ảnh nền khóa chưa
         self.emit_student(&st);
 
         // máy vừa vào lớp: áp dụng trạng thái hiện tại của lớp
@@ -740,6 +862,7 @@ impl Hub {
                     K_CTRL => match proto::parse_ctrl(&d).unwrap_or(Ctrl::Pong) {
                         Ctrl::Status { status } => {
                             *st.status.write().unwrap() = Some(status.clone());
+                            self.push_lock_media(&st, &status.lock_media);
                             let _ = self.app.emit("status", json!({"id": st.id, "status": status}));
                         }
                         Ctrl::FileDone { id, ok, path, error } => {

@@ -81,7 +81,10 @@ Bố cục: thanh biểu tượng bên trái, **thanh công cụ** phía trên, 
 
 ### Chọn máy
 
-- Bấm vào ô để chọn hoặc bỏ chọn; ô vuông đầu thanh lọc chọn tất cả.
+- Bấm vào một máy để chọn máy đó (bấm lại để bỏ chọn).
+- Giữ **Ctrl** (Mac: ⌘) rồi bấm để chọn thêm / bỏ bớt nhiều máy. Giữ **Shift** rồi bấm để chọn cả dải máy liền nhau.
+- **Ctrl + A** chọn tất cả máy, **Esc** bỏ chọn. Ô vuông đầu thanh lọc cũng chọn tất cả.
+- Ô vuông nhỏ trên từng máy: bấm để thêm / bớt máy đó mà không cần giữ Ctrl.
 - **Không chọn máy nào thì lệnh áp dụng cho cả lớp.** Góc phải thanh công cụ luôn ghi rõ lệnh áp dụng cho bao nhiêu máy.
 
 ### Thanh lọc
@@ -94,7 +97,8 @@ Bố cục: thanh biểu tượng bên trái, **thanh công cụ** phía trên, 
   - **Sơ đồ phòng**: kéo thả máy vào chỗ ngồi giống phòng thật, thả lên máy khác để đổi chỗ. Nút **Xếp tự động theo tên** xếp nhanh.
   - **Danh sách**: bảng tên máy, học sinh, ứng dụng đang dùng, IP, phiên bản.
 - Chuột phải vào máy:
-  - Xem / điều khiển, khóa, nhắn tin.
+  - Xem / điều khiển, khóa / mở khóa, nhắn tin, **mở trang web**, **mở ứng dụng** trên riêng máy đó.
+  - Bỏ chặn riêng cho máy đó: **Mở web cho máy này**, **Bỏ chặn ứng dụng cho máy này**, **Bật tiếng cho máy này**, **Tắt chế độ thi cho máy này** (chỉ hiện khi máy đang bị giới hạn tương ứng; các giới hạn khác giữ nguyên). **Bỏ mọi giới hạn cho máy này** bỏ hết một lần.
   - **Đặt tên hiển thị** (ví dụ tên học sinh ngồi máy đó).
   - Gỡ máy ngoại tuyến khỏi danh sách.
 
@@ -102,7 +106,7 @@ Bố cục: thanh biểu tượng bên trái, **thanh công cụ** phía trên, 
 
 | Nút | Việc |
 |---|---|
-| Khóa máy ▾ | Khóa màn hình kèm lời nhắn (chặn bàn phím, chuột) / Mở khóa |
+| Khóa máy | Bấm là khóa ngay (chặn bàn phím, chuột), không cần gõ lời nhắn. Khi các máy đã khóa, nút đổi thành **Mở khóa**. Dòng chữ và ảnh/video nền đặt trong Cài đặt › Màn hình khóa |
 | Trình chiếu ▾ | Chiếu màn hình giáo viên: toàn màn hình (khóa bàn phím, chuột; học sinh không thoát ra được) hoặc trong cửa sổ. Máy vào lớp muộn tự nhận trình chiếu. |
 | Tin nhắn | Hiện hộp tin nhắn trên máy học sinh |
 | Gửi file ▾ | Gửi file hoặc cả thư mục, hoặc **kéo file từ máy tính thả vào cửa sổ LabControl**. Học sinh nhận ở thư mục `TuGiaoVien` trên màn hình nền, có thông báo khi nhận xong. Tiến độ hiện ở góc dưới phải. |
@@ -121,7 +125,7 @@ Bố cục: thanh biểu tượng bên trái, **thanh công cụ** phía trên, 
 Chặn web, chặn ứng dụng và chế độ thi:
 
 - Đang chọn máy thì chỉ áp dụng cho các máy đó (giới hạn riêng); không chọn máy nào thì áp dụng cho cả lớp và xóa mọi giới hạn riêng.
-- Ví dụ cả lớp đang bị chặn web mà một máy cần mở web: **chuột phải vào máy đó → Bỏ giới hạn cho máy này**.
+- Ví dụ cả lớp đang bị chặn web mà một máy cần mở web: **chuột phải vào máy đó → Mở web cho máy này** (máy đó vẫn bị chặn ứng dụng, tắt tiếng... nếu cả lớp đang bị).
   Muốn máy đó bị chặn lại như cả lớp: chuột phải → **Dùng giới hạn chung của lớp**.
 
 - Giới hạn chung của lớp áp dụng cả cho máy vào lớp sau.
@@ -199,6 +203,7 @@ Ghi lại trong buổi học:
 | Nhận máy mới | Tắt khi đã đủ máy, để không ai ghép thêm máy lạ vào lớp |
 | Cài máy học sinh | Lệnh cài sẵn mật khẩu phòng để chép |
 | Danh sách chặn | Các trang web / ứng dụng hiện thành nút chọn nhanh |
+| Màn hình khóa | Dòng chữ trên màn hình khóa, và **ảnh hoặc video nền**. Ảnh: JPG, PNG, WebP... Video (MP4 H.264 hoặc WebM) được cắt thành chuỗi khung hình chạy lặp lại, không có tiếng; chọn thời lượng tối đa (3–30 giây) và số khung hình/giây. Ảnh/video được gửi trước tới máy đang trực tuyến (và máy vào lớp sau), nên bấm khóa là hiện ngay. Máy học sinh cần bản 3.3.0 trở lên. |
 | Hình ảnh & tốc độ | Chu kỳ cập nhật ảnh, độ nét, khung hình/giây khi trình chiếu |
 | Nền tối | Nút cuối thanh bên trái |
 

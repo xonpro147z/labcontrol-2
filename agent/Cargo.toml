@@ -1,6 +1,6 @@
 [package]
 name = "labcontrol-agent"
-version = "3.2.2"
+version = "3.3.0"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/xonpro147z/labcontrol-2"
 edition = "2021"

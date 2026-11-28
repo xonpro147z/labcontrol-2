@@ -2,6 +2,16 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/), đánh số phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.3.0] – 2026-11-28
+### Thay đổi
+- **Khóa máy bấm là khóa ngay**, không hiện hộp gõ lời nhắn. Các máy đang chọn (hoặc cả lớp) đã khóa thì nút đổi thành **Mở khóa**.
+- Chọn máy kiểu quen thuộc: bấm để chọn một máy, **Ctrl/⌘ + bấm** để chọn nhiều máy, **Shift + bấm** chọn một dải, **Ctrl/⌘ + A** chọn tất cả, **Esc** bỏ chọn.
+
+### Thêm
+- Cài đặt › **Màn hình khóa**: dòng chữ, **ảnh hoặc video nền** (video được cắt thành khung hình chạy lặp lại). Máy giáo viên gửi trước tới máy học sinh, nên khóa là hiện ngay.
+- Chuột phải vào máy: **Mở trang web…**, **Mở ứng dụng…**, và bỏ chặn riêng từng thứ cho máy đó: **Mở web**, **Bỏ chặn ứng dụng**, **Bật tiếng**, **Tắt chế độ thi**.
+- Cần cập nhật máy học sinh lên 3.3.0 (nút **Cập nhật**) để hiện ảnh/video nền. Máy bản cũ vẫn khóa được, với nền mặc định.
+
 ## [3.2.2] – 2026-11-25
 ### Thêm
 - Nút **Tắt tiếng** trên thanh công cụ: tắt loa máy học sinh (cả lớp, máy đang chọn hoặc từng máy).

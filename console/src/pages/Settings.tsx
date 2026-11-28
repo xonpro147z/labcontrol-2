@@ -1,10 +1,10 @@
 import { tr } from "../i18n";
 import { useState, type ReactNode } from "react";
-import { Ban, Download, Gauge, Info, KeyRound, Laptop, Palette, RefreshCw, RotateCcw, Send } from "lucide-react";
+import { Ban, Download, Film, Gauge, ImagePlus, Info, KeyRound, Laptop, Lock, Palette, RefreshCw, RotateCcw, Send, Trash2 } from "lucide-react";
 import { LANGS, lang } from "../i18n";
 import { ACCENTS, WALLPAPERS } from "../theme";
 import { open } from "@tauri-apps/plugin-dialog";
-import { api, reload, setSettingsLocal, useStore, type Settings } from "../api";
+import { api, reload, setSettingsLocal, useStore, type LockMedia, type Settings } from "../api";
 import { SOURCE_URL, VERSION } from "../components/About";
 import { Modal, Switch, errText, toast } from "../components/ui";
 
@@ -13,6 +13,7 @@ const SECTIONS = (): { k: string; label: string; icon: ReactNode }[] => [
   { k: "room", label: tr("Phòng & ghép máy"), icon: <KeyRound size={16} /> },
   { k: "install", label: tr("Cài máy học sinh"), icon: <Laptop size={16} /> },
   { k: "lists", label: tr("Danh sách chặn"), icon: <Ban size={16} /> },
+  { k: "lock", label: tr("Màn hình khóa"), icon: <Lock size={16} /> },
   { k: "perf", label: tr("Hình ảnh & tốc độ"), icon: <Gauge size={16} /> },
   { k: "about", label: tr("Giới thiệu"), icon: <Info size={16} /> },
 ];
@@ -36,7 +37,9 @@ export function SettingsModal({ initial, onClose }: { initial: string; onClose: 
   const up = (p: Partial<Settings>) => setS({ ...s, ...p });
   // đổi giao diện / ngôn ngữ: xem trước ngay; bấm Hủy thì trả lại như cũ
   const look = (p: Partial<Settings>) => { const n = { ...s, ...p }; setS(n); setSettingsLocal({ ...orig, ...pickLook(n) }); };
-  const cancel = () => { setSettingsLocal(orig); onClose(); };
+  // ảnh nền màn hình khóa được lưu ngay khi chọn (không theo nút Hủy)
+  const cancel = () => { setSettingsLocal({ ...orig, lock_media: s.lock_media }); onClose(); };
+  const setMedia = (m: LockMedia) => { setS((x) => ({ ...x, lock_media: m })); setSettingsLocal({ ...st.settings!, lock_media: m }); };
 
   const save = async () => {
     const next: Settings = {
@@ -127,6 +130,7 @@ export function SettingsModal({ initial, onClose }: { initial: string; onClose: 
               placeholder={"C:\\Program Files (x86)\\Scratch 3\\Scratch 3.exe\nscratch-desktop"} />
               <span className="hint">{tr("Mỗi dòng một ứng dụng: tên chương trình, đường dẫn đầy đủ, hoặc lệnh có tham số. Hiện thành nút chọn nhanh trong “Mở ứng dụng”.")}</span></div>
           </>}
+          {sec === "lock" && <LockSection s={s} up={up} setMedia={setMedia} />}
           {sec === "perf" && <>
             <div className="field"><label>{tr("Cập nhật ảnh màn hình mỗi")}{" "}{s.thumb_seconds}{" "}{tr("giây")}</label>
               <input type="range" min={0.5} max={10} step={0.5} value={s.thumb_seconds} onChange={(e) => up({ thumb_seconds: +e.target.value })} /></div>
@@ -171,6 +175,117 @@ function pickLook(s: Settings): Partial<Settings> {
   return o as Partial<Settings>;
 }
 const DEFAULT_LOOK: Partial<Settings> = { theme_mode: "light", dark: false, accent: "#0a9d94", wallpaper: "aurora", glass: true, glass_level: 60, font_scale: 100, radius: "normal" };
+
+// ------------------------------------------------------------------ màn hình khóa
+const MAX_BYTES = 44 << 20;
+
+const loadImage = (url: string) => new Promise<HTMLImageElement>((ok, bad) => {
+  const im = new Image();
+  im.onload = () => ok(im);
+  im.onerror = () => bad(new Error(tr("Không đọc được ảnh này")));
+  im.src = url;
+});
+
+/** Vẽ khung hình vào canvas (tối đa maxW × maxH, giữ tỉ lệ) rồi nén JPEG */
+function toJpeg(src: CanvasImageSource, w: number, h: number, maxW: number, maxH: number, q: number): string {
+  const k = Math.min(1, maxW / w, maxH / h);
+  const c = document.createElement("canvas");
+  c.width = Math.max(2, Math.round(w * k)); c.height = Math.max(2, Math.round(h * k));
+  c.getContext("2d")!.drawImage(src, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", q);
+}
+
+const b64Bytes = (d: string) => Math.floor((d.length - d.indexOf(",") - 1) * 0.75);
+
+function LockSection({ s, up, setMedia }: { s: Settings; up: (p: Partial<Settings>) => void; setMedia: (m: LockMedia) => void }) {
+  const [busy, setBusy] = useState("");
+  const [secs, setSecs] = useState(10);
+  const [fps, setFps] = useState(10);
+  const m = s.lock_media;
+  const has = !!m?.sha;
+
+  const save = async (kind: string, name: string, rate: number, frames: string[]) => {
+    const thumbDataUrl = await loadImage(frames[0]).then((im) => toJpeg(im, im.naturalWidth, im.naturalHeight, 480, 270, 0.7));
+    setBusy(tr("Đang lưu…"));
+    const info = await api.setLockMedia(kind, name, rate, frames, thumbDataUrl);
+    setMedia(info);
+    toast(tr("Đã đặt ảnh nền màn hình khóa. Máy học sinh đang trực tuyến sẽ nhận trước để khóa là hiện ngay."));
+  };
+
+  const pickImage = async (f: File) => {
+    const url = URL.createObjectURL(f);
+    try {
+      setBusy(tr("Đang xử lý ảnh…"));
+      const im = await loadImage(url);
+      await save("image", f.name, 0, [toJpeg(im, im.naturalWidth, im.naturalHeight, 1920, 1080, 0.85)]);
+    } catch (e) { toast(errText(e), "error"); } finally { URL.revokeObjectURL(url); setBusy(""); }
+  };
+
+  const pickVideo = async (f: File) => {
+    const url = URL.createObjectURL(f);
+    const v = document.createElement("video");
+    v.muted = true; v.preload = "auto"; v.playsInline = true;
+    try {
+      setBusy(tr("Đang mở video…"));
+      await new Promise<void>((ok, bad) => {
+        v.onloadeddata = () => ok();
+        v.onerror = () => bad(new Error(tr("Máy này không mở được video đó. Hãy thử file MP4 (H.264) hoặc WebM.")));
+        v.src = url;
+      });
+      const dur = isFinite(v.duration) && v.duration > 0 ? v.duration : secs;
+      const len = Math.min(dur, secs);
+      const n = Math.max(2, Math.floor(len * fps));
+      const frames: string[] = [];
+      let bytes = 0;
+      for (let i = 0; i < n; i++) {
+        await new Promise<void>((ok) => { v.onseeked = () => ok(); v.currentTime = Math.min(i / fps, dur - 0.01); });
+        const fr = toJpeg(v, v.videoWidth, v.videoHeight, 1280, 720, 0.72);
+        bytes += b64Bytes(fr);
+        if (bytes > MAX_BYTES) throw new Error(tr("Video quá nặng: hãy giảm thời lượng hoặc số khung hình/giây."));
+        frames.push(fr);
+        setBusy(tr("Đang cắt khung hình… {0}%", Math.round(((i + 1) / n) * 100)));
+      }
+      await save("video", f.name, fps, frames);
+    } catch (e) { toast(errText(e), "error"); } finally { URL.revokeObjectURL(url); v.removeAttribute("src"); setBusy(""); }
+  };
+
+  const clear = async () => {
+    try { await api.clearLockMedia(); setMedia({ sha: "", kind: "", name: "", fps: 0, frames: 0, size: 0, thumb: "" }); }
+    catch (e) { toast(errText(e), "error"); }
+  };
+  const file = (accept: string, onPick: (f: File) => void) => (
+    <input type="file" accept={accept} style={{ display: "none" }}
+           onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onPick(f); }} />
+  );
+
+  return <>
+    <div className="small muted">{tr("Bấm “Khóa máy” trên thanh công cụ là khóa ngay, không cần gõ gì. Chữ và ảnh/video nền dưới đây dùng cho mọi lần khóa.")}</div>
+    <div className="field"><label>{tr("Dòng chữ trên màn hình khóa")}</label>
+      <input className="input" value={s.lock_message} placeholder={tr("Hãy chú ý lên giáo viên")} onChange={(e) => up({ lock_message: e.target.value })} /></div>
+    <div className="field"><label>{tr("Ảnh hoặc video nền")}</label>
+      <div className="lock-prev" style={has && m.thumb ? { backgroundImage: `url(${m.thumb})` } : undefined}>
+        <div className="lock-band"><b>🔒 {s.lock_message.trim() || tr("Hãy chú ý lên giáo viên")}</b><span>{tr("Máy đã bị giáo viên khóa")}</span></div>
+        {busy && <div className="lock-busy"><div className="spinner" />{busy}</div>}
+      </div>
+      {has && <div className="small faint">
+        {m.kind === "video" ? <Film size={13} /> : <ImagePlus size={13} />}{" "}{m.name}{" · "}
+        {m.kind === "video" ? tr("{0} khung · {1} khung/giây · ", m.frames, m.fps) : ""}{m.size >= 1048576 ? `${(m.size / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(m.size / 1024))} KB`}</div>}
+      <div className="row wrap">
+        <label className={`btn ${busy ? "disabled" : ""}`}><ImagePlus size={14} />{tr("Chọn ảnh…")}{!busy && file("image/*", pickImage)}</label>
+        <label className={`btn ${busy ? "disabled" : ""}`}><Film size={14} />{tr("Chọn video…")}{!busy && file("video/*", pickVideo)}</label>
+        {has && <button className="btn" disabled={!!busy} onClick={clear}><Trash2 size={14} />{tr("Bỏ ảnh nền")}</button>}
+      </div>
+      <span className="hint">{tr("Ảnh: JPG, PNG, WebP… Video được cắt thành chuỗi khung hình, chạy lặp lại, không có tiếng. Nên dùng đoạn ngắn để gửi nhanh qua mạng.")}</span></div>
+    <div className="field"><label>{tr("Video: lấy tối đa {0} giây đầu, {1} khung hình/giây", secs, fps)}</label>
+      <div className="row wrap">
+        <input type="range" min={3} max={30} value={secs} onChange={(e) => setSecs(+e.target.value)} style={{ flex: 1 }} />
+        <select className="sel" value={fps} onChange={(e) => setFps(+e.target.value)}>
+          {[6, 8, 10, 12, 15].map((x) => <option key={x} value={x}>{tr("{0} khung/giây", x)}</option>)}
+        </select>
+      </div>
+      <span className="hint">{tr("Áp dụng cho lần chọn video tiếp theo. Máy học sinh cần bản 3.3.0 trở lên để hiện ảnh/video nền.")}</span></div>
+  </>;
+}
 
 function LookSection({ s, look }: { s: Settings; look: (p: Partial<Settings>) => void }) {
   const en = lang() === "en";

@@ -56,7 +56,10 @@ pub fn run(mode: &str, text: &str, fullscreen: bool) -> anyhow::Result<()> {
             let t = text.to_string();
             Box::new(move |ctx| {
                 block_input();
-                Box::new(Lock { text: t, ctx: ctx.clone() })
+                let media = std::env::var_os("LABCONTROL_LOCK_MEDIA").and_then(|p| std::fs::read(p).ok())
+                    .and_then(|d| lc_core::lockmedia::unpack(&d).ok())
+                    .map(|(fps, frames)| Media { fps, frames, idx: usize::MAX, next: std::time::Instant::now(), tex: None });
+                Box::new(Lock { text: t, ctx: ctx.clone(), media, focused: None })
             })
         }
         "message" => {
@@ -124,13 +127,85 @@ pub fn run(mode: &str, text: &str, fullscreen: bool) -> anyhow::Result<()> {
 struct Lock {
     text: String,
     ctx: egui::Context,
+    media: Option<Media>,
+    focused: Option<std::time::Instant>,
+}
+
+/// Ảnh hoặc video (chuỗi khung JPEG) làm nền màn hình khóa
+struct Media {
+    fps: u16,
+    frames: Vec<Vec<u8>>,
+    idx: usize,
+    next: std::time::Instant,
+    tex: Option<egui::TextureHandle>,
+}
+
+impl Media {
+    /// Chuyển khung khi tới giờ. Trả về thời gian chờ tới khung kế tiếp.
+    fn step(&mut self, ctx: &egui::Context) -> Option<std::time::Duration> {
+        let now = std::time::Instant::now();
+        let still = self.fps == 0 || self.frames.len() < 2;
+        if self.tex.is_none() || (!still && now >= self.next) {
+            self.idx = if self.idx == usize::MAX { 0 } else { (self.idx + 1) % self.frames.len() };
+            if let Ok((w, h, px)) = lc_core::img::decode_rgba(&self.frames[self.idx]) {
+                let img = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &px);
+                match &mut self.tex {
+                    Some(t) => t.set(img, egui::TextureOptions::LINEAR),
+                    None => self.tex = Some(ctx.load_texture("lock-bg", img, egui::TextureOptions::LINEAR)),
+                }
+            }
+            let dt = std::time::Duration::from_secs_f32(1.0 / self.fps.clamp(1, 30) as f32);
+            self.next = if now > self.next + dt { now + dt } else { self.next + dt };
+        }
+        (!still).then(|| self.next.saturating_duration_since(std::time::Instant::now()))
+    }
+}
+
+/// Phủ kín khung (cắt bớt phần thừa), giống "object-fit: cover"
+fn cover_uv(img: egui::Vec2, area: egui::Rect) -> egui::Rect {
+    let (ia, aa) = (img.x / img.y.max(1.0), area.width() / area.height().max(1.0));
+    if ia > aa {
+        let w = aa / ia;
+        egui::Rect::from_min_max(egui::pos2((1.0 - w) / 2.0, 0.0), egui::pos2((1.0 + w) / 2.0, 1.0))
+    } else {
+        let h = ia / aa;
+        egui::Rect::from_min_max(egui::pos2(0.0, (1.0 - h) / 2.0), egui::pos2(1.0, (1.0 + h) / 2.0))
+    }
 }
 
 impl eframe::App for Lock {
     fn ui(&mut self, root: &mut egui::Ui, _f: &mut eframe::Frame) {
         let ctx = &root.ctx().clone();
         keep_open(ctx);
+        let wait = self.media.as_mut().and_then(|m| m.step(ctx));
+        let bg = self.media.as_ref().and_then(|m| m.tex.as_ref()).map(|t| (t.id(), t.size_vec2()));
         egui::CentralPanel::default().frame(egui::Frame::new().fill(BG)).show(root, |ui| {
+            let full = ui.max_rect();
+            if let Some((id, size)) = bg {
+                let p = ui.painter();
+                p.image(id, full, cover_uv(size, full), egui::Color32::WHITE);
+                // làm tối phần dưới để chữ luôn đọc được
+                let band = egui::Rect::from_min_max(egui::pos2(full.left(), (full.bottom() - 190.0).round()), full.max);
+                // dải tối mờ dần từ trên xuống (mỗi hàng điểm ảnh một lớp, không lộ vạch)
+                let fade = 110.0_f32;
+                let top = (band.top() - fade).round();
+                for k in 0..fade as i32 {
+                    let y = top + k as f32;
+                    let a = 150.0 * (k as f32 + 0.5) / fade;
+                    p.rect_filled(egui::Rect::from_min_max(egui::pos2(full.left(), y), egui::pos2(full.right(), y + 1.0)), 0.0,
+                                  egui::Color32::from_black_alpha(a as u8));
+                }
+                p.rect_filled(band, 0.0, egui::Color32::from_black_alpha(150));
+                ui.scope_builder(egui::UiBuilder::new().max_rect(band), |ui| {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(42.0);
+                        ui.label(egui::RichText::new(format!("🔒  {}", self.text)).size(34.0).strong().color(egui::Color32::WHITE));
+                        ui.add_space(8.0);
+                        ui.label(egui::RichText::new(l!("Máy đã bị giáo viên khóa", "Your computer is locked by the teacher")).size(18.0).color(egui::Color32::from_gray(210)));
+                    });
+                });
+                return;
+            }
             ui.vertical_centered(|ui| {
                 ui.add_space(ui.available_height() * 0.33);
                 ui.label(egui::RichText::new("🔒").size(80.0).color(egui::Color32::WHITE));
@@ -140,9 +215,13 @@ impl eframe::App for Lock {
                 ui.label(egui::RichText::new(l!("Máy đã bị giáo viên khóa", "Your computer is locked by the teacher")).size(18.0).color(egui::Color32::from_gray(160)));
             });
         });
-        // luôn ở trên cùng và giữ tiêu điểm
-        self.ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-        ctx.request_repaint_after(std::time::Duration::from_millis(500));
+        // luôn ở trên cùng và giữ tiêu điểm (không giành liên tục khi đang chạy video)
+        let d = std::time::Duration::from_millis(500);
+        if self.focused.is_none_or(|t| t.elapsed() >= d) {
+            self.ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            self.focused = Some(std::time::Instant::now());
+        }
+        ctx.request_repaint_after(wait.map(|w| w.min(d)).unwrap_or(d));
     }
 }
 
